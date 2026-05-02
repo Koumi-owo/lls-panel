@@ -1,0 +1,2152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLS懶懶生存 管理面板</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0D0F12;--bg2:#141619;--bg3:#1C1F24;--bgh:#222629;
+  --t1:#E2E8F0;--t2:#8B95A2;--t3:#525A64;
+  --acc:#00B4D8;--danger:#EF4444;--warn:#F59E0B;--ok:#22C55E;--info:#6366F1;
+  --bd:#2D3138;
+}
+*,body{font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5}
+body{background:var(--bg);color:var(--t1);display:flex;height:100vh;overflow:hidden}
+
+/* Layout */
+#sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0}
+.logo{padding:14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd)}
+.logo-icon{width:28px;height:28px;background:var(--acc);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#000;flex-shrink:0}
+.logo-name{font-weight:600;font-size:13px}
+.logo-ver{font-size:10px;color:var(--t3)}
+.nav{flex:1;overflow-y:auto;padding:6px 0}
+.nav-lbl{font-size:10px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;padding:8px 14px 2px}
+.ni{display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;color:var(--t2);transition:background .12s,color .12s;white-space:nowrap;position:relative}
+.ni:hover{background:var(--bgh);color:var(--t1)}
+.ni.on{background:rgba(0,180,216,.12);color:var(--acc);border-right:2px solid var(--acc)}
+.ni svg{width:15px;height:15px;flex-shrink:0;opacity:.75}
+.ni.on svg{opacity:1}
+.ni span{font-size:13px}
+.ni .nbadge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;padding:1px 5px;border-radius:10px}
+.ni .owner-tag{font-size:9px;background:var(--danger);color:#fff;padding:1px 5px;border-radius:3px;margin-left:auto}
+.sb-foot{padding:10px 14px;border-top:1px solid var(--bd)}
+.urow{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0}
+.av{width:28px;height:28px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#000;flex-shrink:0}
+.uname{font-size:12px;font-weight:600}
+.urole{font-size:10px;color:var(--acc)}
+
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:46px;background:var(--bg2);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 18px;gap:10px;flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600;flex:1}
+.tbbtn{width:30px;height:30px;border-radius:6px;background:transparent;border:1px solid var(--bd);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .12s}
+.tbbtn:hover{background:var(--bgh);color:var(--t1)}
+.notif-wrap{position:relative}
+.notif-pip{position:absolute;top:5px;right:5px;width:6px;height:6px;background:var(--danger);border-radius:50%;pointer-events:none}
+#content{flex:1;overflow-y:auto;padding:18px}
+.page{display:none}.page.active{display:block}
+
+/* Cards */
+.card{background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.card-title{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:11px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.sc{background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.slbl{font-size:11px;color:var(--t3);margin-bottom:4px}
+.sval{font-size:22px;font-weight:600}
+.ssub{font-size:11px;color:var(--t3);margin-top:2px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* Utility */
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;vertical-align:middle}
+.dot-ok{background:var(--ok)}.dot-warn{background:var(--warn);animation:blink 1.4s infinite}.dot-off{background:var(--t3)}.dot-danger{background:var(--danger)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500}
+.bok{background:rgba(34,197,94,.15);color:var(--ok)}
+.bwarn{background:rgba(245,158,11,.15);color:var(--warn)}
+.bdanger{background:rgba(239,68,68,.15);color:var(--danger)}
+.bacc{background:rgba(0,180,216,.15);color:var(--acc)}
+.binfo{background:rgba(99,102,241,.15);color:var(--info)}
+.bmute{background:rgba(82,90,100,.18);color:var(--t2)}
+.c-ok{color:var(--ok)}.c-warn{color:var(--warn)}.c-danger{color:var(--danger)}.c-acc{color:var(--acc)}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:11px;color:var(--t3);font-weight:500;text-align:left;padding:7px 10px;border-bottom:1px solid var(--bd);text-transform:uppercase;letter-spacing:.05em}
+.tbl td{padding:8px 10px;border-bottom:1px solid rgba(45,49,56,.55);font-size:13px;vertical-align:middle}
+.tbl tr:hover td{background:rgba(255,255,255,.018)}
+.tbl tr:last-child td{border-bottom:none}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:6px;border:1px solid var(--bd);background:transparent;color:var(--t1);font-size:13px;cursor:pointer;transition:background .12s,border-color .12s;line-height:1.4}
+.btn:hover{background:var(--bgh)}
+.btn-p{background:var(--acc);border-color:var(--acc);color:#000;font-weight:600}
+.btn-p:hover{background:#00cae8;border-color:#00cae8}
+.btn-d{border-color:var(--danger);color:var(--danger)}
+.btn-d:hover{background:rgba(239,68,68,.1)}
+.btn-sm{padding:3px 10px;font-size:12px}
+.btn-ghost{border-color:transparent}.btn-ghost:hover{background:var(--bgh);border-color:var(--bd)}
+.btn-ok{border-color:var(--ok);color:var(--ok)}.btn-ok:hover{background:rgba(34,197,94,.1)}
+
+/* Form */
+.fg{margin-bottom:13px}
+.fl{font-size:12px;color:var(--t2);margin-bottom:4px;display:block;font-weight:500}
+.fi{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;color:var(--t1);font-size:13px;outline:none;transition:border-color .12s}
+.fi:focus{border-color:var(--acc)}.fi::placeholder{color:var(--t3)}.fi:disabled{opacity:.45}
+.fsel{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;color:var(--t1);font-size:13px;outline:none;cursor:pointer}
+.fhint{font-size:11px;color:var(--t3);margin-top:3px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ftextarea{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;color:var(--t1);font-size:13px;outline:none;resize:vertical;min-height:100px;transition:border-color .12s;font-family:'Segoe UI',system-ui,sans-serif}
+.ftextarea:focus{border-color:var(--acc)}.ftextarea::placeholder{color:var(--t3)}
+
+/* Toggle */
+.tog{position:relative;display:inline-block;width:34px;height:18px}
+.tog input{opacity:0;width:0;height:0}
+.tslider{position:absolute;inset:0;background:var(--bd);border-radius:18px;cursor:pointer;transition:.18s}
+.tslider::before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.18s}
+.tog input:checked+.tslider{background:var(--acc)}
+.tog input:checked+.tslider::before{transform:translateX(16px)}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--bd);margin-bottom:14px}
+.tab{padding:8px 15px;font-size:13px;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;transition:.12s;margin-bottom:-1px}
+.tab:hover{color:var(--t1)}.tab.on{color:var(--acc);border-color:var(--acc)}
+
+/* Alert */
+.al{padding:9px 13px;border-radius:6px;border-left:3px solid;margin-bottom:12px;font-size:13px}
+.al-warn{background:rgba(245,158,11,.08);border-color:var(--warn);color:var(--warn)}
+.al-danger{background:rgba(239,68,68,.08);border-color:var(--danger);color:var(--danger)}
+.al-ok{background:rgba(34,197,94,.08);border-color:var(--ok);color:var(--ok)}
+.al-info{background:rgba(0,180,216,.08);border-color:var(--acc);color:var(--acc)}
+
+/* Progress */
+.pw{background:var(--bd);border-radius:4px;height:5px;overflow:hidden;margin-top:5px}
+.pr{height:100%;border-radius:4px;transition:width .3s}
+.pr-ok{background:var(--ok)}.pr-warn{background:var(--warn)}.pr-danger{background:var(--danger)}.pr-acc{background:var(--acc)}
+
+/* Modal */
+.mov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;align-items:center;justify-content:center}
+.mov.open{display:flex}
+.mdl{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:20px;width:520px;max-width:94vw;max-height:90vh;overflow-y:auto}
+.mdl-lg{width:680px}
+.mdl-title{font-size:15px;font-weight:600;margin-bottom:3px}
+.mdl-sub{font-size:12px;color:var(--t2);margin-bottom:14px}
+.mdl-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+
+/* Log row */
+.lr{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(45,49,56,.45);align-items:flex-start}
+.lr:last-child{border-bottom:none}
+.lt{font-size:11px;color:var(--t3);white-space:nowrap;width:72px;flex-shrink:0;padding-top:2px}
+.li{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:600}
+.li-ok{background:rgba(34,197,94,.14);color:var(--ok)}.li-w{background:rgba(245,158,11,.14);color:var(--warn)}.li-d{background:rgba(239,68,68,.14);color:var(--danger)}.li-i{background:rgba(0,180,216,.14);color:var(--acc)}
+.lb{flex:1}.la{font-size:13px;font-weight:500}.lm{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* Srv row */
+.sr{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(45,49,56,.45)}
+.sr:last-child{border-bottom:none}
+
+/* Member row */
+.mr{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid rgba(45,49,56,.45)}
+.mr:last-child{border-bottom:none}
+.mav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0}
+
+/* Sense */
+.ss{background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:12px}
+.ss-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.ss-sub{font-size:11px;color:var(--t3);margin-bottom:12px}
+.maskf{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--t2);font-family:monospace}
+
+/* Embed preview */
+.embed-prev{background:#2b2d31;border-radius:4px;border-left:4px solid #5865F2;padding:12px 14px;margin-top:8px}
+.embed-author{font-size:11px;color:#b5bac1;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.embed-title{font-size:15px;font-weight:600;color:#00b0f4;margin-bottom:6px}
+.embed-desc{font-size:13px;color:#dbdee1;white-space:pre-wrap;margin-bottom:8px}
+.embed-field{margin-bottom:6px}
+.embed-field-name{font-size:12px;font-weight:600;color:#dbdee1;margin-bottom:2px}
+.embed-field-val{font-size:12px;color:#b5bac1}
+.embed-footer{font-size:11px;color:#87898c;border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:8px}
+
+/* Section header */
+.shdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.stitle{font-size:15px;font-weight:600}
+
+/* Wizard */
+.wsteps{display:flex;margin-bottom:22px;position:relative}
+.wsteps::before{content:'';position:absolute;top:12px;left:12px;right:12px;height:1px;background:var(--bd);z-index:0}
+.wstep{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;position:relative;z-index:1}
+.wsnum{width:24px;height:24px;border-radius:50%;background:var(--bg3);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--t3)}
+.wstep.done .wsnum{background:var(--acc);border-color:var(--acc);color:#000}
+.wstep.cur .wsnum{background:var(--bg3);border-color:var(--acc);color:var(--acc)}
+.wslbl{font-size:10px;color:var(--t3);white-space:nowrap}.wstep.cur .wslbl{color:var(--acc)}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+
+/* Login */
+#loginwrap{display:none !important}
+#app{display:flex;width:100%;height:100vh;flex-direction:row}
+#app.vis{display:flex}
+#toast{position:fixed;bottom:22px;right:22px;background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:11px 16px;font-size:13px;transform:translateY(60px);opacity:0;transition:all .22s;z-index:300;max-width:320px;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginwrap">
+  <div style="width:360px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">
+      <div style="width:36px;height:36px;background:var(--acc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000">PB</div>
+      <div><div style="font-size:19px;font-weight:700">管理面板</div><div style="font-size:11px;color:var(--t3)">LLS懶懶生存 整合管理面板</div></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:22px">
+      <div style="font-size:15px;font-weight:600;margin-bottom:3px">管理員登入</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:18px">請使用授權帳號登入</div>
+      <div class="fg"><label class="fl">電子郵件</label><input class="fi" type="email" id="l-email" placeholder="admin@lls.dev"></div>
+      <div class="fg"><label class="fl">密碼</label><input class="fi" type="password" id="l-pw" placeholder="••••••••"></div>
+      <div id="l-err" class="al al-danger" style="display:none">帳號或密碼不正確，或帳號尚未被授予存取權限。</div>
+      <button class="btn btn-p" style="width:100%;justify-content:center;padding:8px;margin-top:4px" onclick="doLogin()">登入</button>
+    </div>
+    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--t3)">v0.2.0-proto · 僅授權人員可登入</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">
+    <div class="logo-icon">LLS</div>
+    <div><div class="logo-name">管理面板</div><div class="logo-ver">LLS懶懶生存</div></div>
+  </div>
+  <nav class="nav">
+    <div class="nav-lbl">概覽</div>
+    <div class="ni on" onclick="pg('dashboard','Dashboard')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="ni" onclick="pg('status','系統狀態')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      <span>系統狀態</span>
+    </div>
+    <div class="ni" onclick="pg('alerts','警示中心')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>警示中心</span><span class="nbadge">3</span>
+    </div>
+    <div class="nav-lbl">Discord 管理</div>
+    <div class="ni" onclick="pg('discord','Discord 成員管理')">
+      <svg fill="currentColor" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+      <span>成員管理</span>
+    </div>
+    <div class="ni" onclick="pg('announce','Discord 公告發送')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M22 3l-8.646 9.354A8 8 0 1 0 14 22"/><path d="M22 3L11 13"/></svg>
+      <span>公告發送</span>
+    </div>
+    <div class="nav-lbl">Minecraft 管理</div>
+    <div class="ni" onclick="pg('minecraft','Minecraft 伺服器控制')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+      <span>伺服器控制</span>
+    </div>
+    <div class="ni" onclick="pg('mc-settings','伺服器設定')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>伺服器設定</span>
+    </div>
+    <div class="nav-lbl">管理工具</div>
+    <div class="ni" onclick="pg('users','管理員帳號')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>管理員帳號</span>
+    </div>
+    <div class="ni" onclick="pg('roles','權限管理')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>權限管理</span>
+    </div>
+    <div class="ni" onclick="pg('audit','操作紀錄')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>操作紀錄</span>
+    </div>
+    <div class="nav-lbl">系統設定</div>
+    <div class="ni" onclick="pg('pterodactyl','Pterodactyl 綁定')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <span>Pterodactyl 綁定</span>
+    </div>
+    <div class="ni" onclick="pg('sensitive','敏感設定')">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>敏感設定</span><span class="owner-tag">擁有者</span>
+    </div>
+  </nav>
+  <div class="sb-foot">
+    <div class="urow" onclick="pg('profile','個人帳號')">
+      <div class="av">擁</div>
+      <div><div class="uname">擁有者帳號</div><div class="urole">最高擁有者</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div class="topbar">
+    <div class="topbar-title" id="ptitle">Dashboard</div>
+    <button class="tbbtn" onclick="toast('快速指令：Ctrl+K')">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </button>
+    <div class="notif-wrap">
+      <button class="tbbtn" onclick="pg('alerts','警示中心')">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+      </button>
+      <div class="notif-pip"></div>
+    </div>
+    <button class="tbbtn" onclick="doLogout()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+  <div id="content">
+
+<!-- ==================== DASHBOARD ==================== -->
+<div id="page-dashboard" class="page active">
+  <div class="al al-warn">系統公告：LLS懶懶生存將於今晚 22:00 進行例行維護，預計停機 30 分鐘。</div>
+  <div class="stat-grid">
+    <div class="sc"><div class="slbl">Discord 成員</div><div class="sval" id="s-dc-members">—</div><div class="ssub" id="s-dc-sub">載入中...</div></div>
+    <div class="sc"><div class="slbl">Minecraft 在線</div><div class="sval" id="s-mc-players">—</div><div class="ssub" id="s-mc-sub">連接中...</div></div>
+    <div class="sc"><div class="slbl">今日操作次數</div><div class="sval" id="s-ops">—</div><div class="ssub">從審計日誌統計</div></div>
+    <div class="sc"><div class="slbl">待處理警示</div><div class="sval c-danger" id="s-alerts">3</div><div class="ssub c-danger">2 個需立即處理</div></div>
+  </div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">Minecraft 伺服器狀態</div>
+      <div id="dash-servers"><div style="color:var(--t3);font-size:12px;padding:10px 0">連接 Pterodactyl 中...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Discord 伺服器摘要</div>
+      <div id="dash-discord"><div style="color:var(--t3);font-size:12px;padding:10px 0">連接 Discord Bot 中...</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">最近操作紀錄</div>
+      <button class="btn btn-sm btn-ghost" onclick="pg('audit','操作紀錄')">查看全部</button>
+    </div>
+    <div id="dash-logs"><div style="color:var(--t3);font-size:12px;padding:10px 0">載入審計日誌中...</div></div>
+  </div>
+</div>
+
+<!-- ==================== DISCORD ==================== -->
+<div id="page-discord" class="page">
+  <div class="tabs">
+    <div class="tab on" onclick="stab(this,'dt-members')">成員管理</div>
+    <div class="tab" onclick="stab(this,'dt-roles')">角色</div>
+    <div class="tab" onclick="stab(this,'dt-bans')">封鎖名單</div>
+    <div class="tab" onclick="stab(this,'dt-rules')">自動化規則</div>
+  </div>
+
+  <div id="dt-members">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input class="fi" id="dc-search" placeholder="搜尋成員名稱或 User ID..." style="max-width:260px" oninput="filterMembers()">
+      <select class="fsel" id="dc-role-filter" style="width:140px" onchange="filterMembers()">
+        <option value="">所有角色</option>
+        <option>管理員</option><option>版主</option><option>成員</option><option>新成員</option>
+      </select>
+      <button class="btn btn-sm" onclick="loadDCMembers()">重新整理</button>
+    </div>
+    <div class="card">
+      <div id="dc-member-list"><div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">連接 Discord Bot 後，在「敏感設定」設定 Bot Token 和 伺服器 ID 即可載入成員列表。</div></div>
+    </div>
+    <div style="display:flex;align-items:center;margin-top:10px;font-size:12px;color:var(--t3)">
+      <span id="dc-member-count">—</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-sm" id="dc-prev" onclick="dcPage(-1)">上一頁</button>
+        <button class="btn btn-sm" id="dc-next" onclick="dcPage(1)">下一頁</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dt-roles" style="display:none">
+    <div class="card">
+      <div class="card-title">伺服器角色</div>
+      <div id="dc-roles-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要 Discord Bot 連線後載入</div></div>
+    </div>
+  </div>
+
+  <div id="dt-bans" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="fi" placeholder="搜尋封鎖成員..." style="max-width:240px">
+      <button class="btn btn-sm btn-p" onclick="toast('請輸入 User ID 手動新增封鎖')">+ 新增封鎖</button>
+    </div>
+    <div class="card">
+      <div id="dc-bans-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要 Discord Bot 連線後載入</div></div>
+    </div>
+  </div>
+
+  <div id="dt-rules" style="display:none">
+    <div class="shdr"><div class="stitle">自動化規則</div><button class="btn btn-p btn-sm" onclick="openM('add-rule')">+ 新增規則</button></div>
+    <div id="dc-rules-list">
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="tog"><input type="checkbox" checked><span class="tslider"></span></label>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">新成員 5 分鐘未完成驗證自動踢出</div><div style="font-size:11px;color:var(--t3)">觸發：新成員加入 + 5 分鐘計時 → 動作：踢出</div></div>
+          <span class="badge bok">啟用</span>
+          <div style="display:flex;gap:5px"><button class="btn btn-sm">編輯</button><button class="btn btn-sm btn-d" onclick="toast('規則已刪除')">刪除</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="tog"><input type="checkbox" checked><span class="tslider"></span></label>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">偵測廣告關鍵字自動禁言 30 分鐘</div><div style="font-size:11px;color:var(--t3)">觸發：訊息含廣告關鍵字 → 動作：禁言 30 分鐘</div></div>
+          <span class="badge bok">啟用</span>
+          <div style="display:flex;gap:5px"><button class="btn btn-sm">編輯</button><button class="btn btn-sm btn-d">刪除</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="tog"><input type="checkbox"><span class="tslider"></span></label>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">通過 Discord 驗證自動加入 MC 白名單</div><div style="font-size:11px;color:var(--t3)">觸發：完成 Discord 驗證 → 動作：Minecraft 白名單新增</div></div>
+          <span class="badge bmute">停用</span>
+          <div style="display:flex;gap:5px"><button class="btn btn-sm">編輯</button><button class="btn btn-sm btn-d">刪除</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ANNOUNCE ==================== -->
+<div id="page-announce" class="page">
+  <div class="g2">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">公告設定</div>
+        <div class="fg">
+          <label class="fl">目標頻道</label>
+          <select class="fsel" id="ann-channel">
+            <option value="">— 選擇頻道 —</option>
+          </select>
+          <div class="fhint">頻道清單從 Discord Bot 取得。若無選項，請先在敏感設定確認 Bot 已連線。</div>
+        </div>
+        <div class="fg">
+          <label class="fl">公告模板</label>
+          <select class="fsel" id="ann-template" onchange="loadTemplate()">
+            <option value="custom">自訂公告</option>
+            <option value="maintenance">伺服器維護通知</option>
+            <option value="update">版本更新公告</option>
+            <option value="event">活動公告</option>
+            <option value="rule">規則提醒</option>
+            <option value="welcome">歡迎新成員</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Embed 側邊顏色（Hex）</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="fi" id="ann-color" value="#5865F2" style="max-width:120px" oninput="updatePreview()">
+            <div id="ann-color-swatch" style="width:28px;height:28px;border-radius:6px;background:#5865F2;border:1px solid var(--bd)"></div>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">標題</label>
+          <input class="fi" id="ann-title" placeholder="公告標題" oninput="updatePreview()">
+        </div>
+        <div class="fg">
+          <label class="fl">內文（支援 Discord Markdown：**粗體** *斜體* `程式碼`）</label>
+          <textarea class="ftextarea" id="ann-desc" rows="5" placeholder="公告內容..." oninput="updatePreview()"></textarea>
+        </div>
+        <div class="frow">
+          <div class="fg">
+            <label class="fl">頁腳文字（選填）</label>
+            <input class="fi" id="ann-footer" placeholder="例：LLS懶懶生存管理組" oninput="updatePreview()">
+          </div>
+          <div class="fg">
+            <label class="fl">提及方式</label>
+            <select class="fsel" id="ann-mention">
+              <option value="">不提及</option>
+              <option value="here">@here</option>
+              <option value="everyone">@everyone（僅擁有者）</option>
+            </select>
+          </div>
+        </div>
+        <div class="frow">
+          <div class="fg">
+            <label class="fl">排程發送（留空立即發送）</label>
+            <input class="fi" type="datetime-local" id="ann-schedule">
+          </div>
+          <div class="fg" style="display:flex;align-items:flex-end;padding-bottom:13px">
+            <label class="tog" style="margin-right:8px"><input type="checkbox" id="ann-ping-toggle"><span class="tslider"></span></label>
+            <span style="font-size:12px;color:var(--t2)">顯示 Ping 提及</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-p" onclick="sendAnnouncement()">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            發送公告
+          </button>
+          <button class="btn btn-sm" onclick="updatePreview()">更新預覽</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">新增欄位（Fields）</div>
+        <div id="ann-fields-list" style="margin-bottom:10px"></div>
+        <div class="frow">
+          <input class="fi" id="af-name" placeholder="欄位名稱">
+          <input class="fi" id="af-value" placeholder="欄位內容">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <label class="tog"><input type="checkbox" id="af-inline"><span class="tslider"></span></label>
+          <span style="font-size:12px;color:var(--t2)">行內顯示</span>
+          <button class="btn btn-sm btn-p" style="margin-left:auto" onclick="addField()">新增欄位</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Embed 預覽</div>
+        <div style="background:#313338;border-radius:8px;padding:14px">
+          <div style="font-size:11px;color:#80848e;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            <div style="width:18px;height:18px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#000">B</div>
+            <strong style="color:#fff">LLS 管理面板 Bot</strong> 今天
+          </div>
+          <div id="embed-preview" class="embed-prev">
+            <div class="embed-title" id="ep-title">公告標題</div>
+            <div class="embed-desc" id="ep-desc">公告內容將顯示在這裡...</div>
+            <div id="ep-fields"></div>
+            <div class="embed-footer" id="ep-footer" style="display:none"></div>
+          </div>
+          <div id="ep-mention" style="font-size:12px;color:#00b0f4;margin-top:6px;display:none"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">最近公告紀錄</div>
+        <div id="ann-history"><div style="color:var(--t3);font-size:12px;padding:10px 0">尚無公告紀錄</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MINECRAFT ==================== -->
+<div id="page-minecraft" class="page">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <select class="fsel" id="mc-srv-sel" style="width:200px" onchange="switchMcServer()">
+      <option value="">— 選擇伺服器 —</option>
+    </select>
+    <span class="dot dot-off" id="mc-status-dot"></span>
+    <span class="badge bmute" id="mc-status-badge">未選擇</span>
+    <span style="font-size:12px;color:var(--t3)" id="mc-uptime"></span>
+    <div style="margin-left:auto;display:flex;gap:7px">
+      <button class="btn btn-sm btn-p" onclick="mcPower('start')">啟動</button>
+      <button class="btn btn-sm btn-d" onclick="confirmAction('stop')">停止</button>
+      <button class="btn btn-sm" onclick="confirmAction('restart')">重啟</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card"><div class="card-title">CPU 使用率</div><div style="font-size:26px;font-weight:600" id="mc-cpu">—</div><div class="pw" style="margin-top:7px"><div class="pr pr-ok" id="mc-cpu-bar" style="width:0%"></div></div><div style="font-size:11px;color:var(--t3);margin-top:4px" id="mc-cpu-sub"></div></div>
+    <div class="card"><div class="card-title">記憶體使用</div><div style="font-size:26px;font-weight:600" id="mc-mem">—</div><div class="pw" style="margin-top:7px"><div class="pr pr-warn" id="mc-mem-bar" style="width:0%"></div></div><div style="font-size:11px;color:var(--t3);margin-top:4px" id="mc-mem-sub"></div></div>
+    <div class="card"><div class="card-title">在線玩家</div><div style="font-size:26px;font-weight:600" id="mc-players">—</div><div class="pw" style="margin-top:7px"><div class="pr pr-acc" id="mc-players-bar" style="width:0%"></div></div><div style="font-size:11px;color:var(--t3);margin-top:4px" id="mc-tps">TPS: —</div></div>
+  </div>
+  <div class="tabs">
+    <div class="tab on" onclick="stab(this,'mc-tab-players')">在線玩家</div>
+    <div class="tab" onclick="stab(this,'mc-tab-whitelist')">白名單</div>
+    <div class="tab" onclick="stab(this,'mc-tab-bans')">封鎖名單</div>
+    <div class="tab" onclick="stab(this,'mc-tab-backups')">備份</div>
+    <div class="tab" onclick="stab(this,'mc-tab-logs')">伺服器日誌</div>
+  </div>
+  <div id="mc-tab-players" class="card">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="fi" placeholder="搜尋玩家名稱..." style="max-width:220px" id="mc-player-search" oninput="filterMcPlayers()">
+      <button class="btn btn-sm" onclick="loadMcPlayers()">重新整理</button>
+      <button class="btn btn-sm btn-p" style="margin-left:auto" onclick="openM('mc-broadcast')">廣播訊息</button>
+    </div>
+    <div id="mc-player-list"><div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器並確認 Pterodactyl 綁定。</div></div>
+  </div>
+  <div id="mc-tab-whitelist" class="card" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="fi" placeholder="搜尋白名單..." style="max-width:220px" id="wl-search" oninput="filterWhitelist()">
+      <button class="btn btn-sm" onclick="loadWhitelist()">重新整理</button>
+      <button class="btn btn-sm btn-p" style="margin-left:auto" onclick="openM('add-whitelist')">+ 新增</button>
+      <button class="btn btn-sm" onclick="toast('請上傳包含玩家名稱的 CSV 檔案')">CSV 匯入</button>
+    </div>
+    <div id="mc-whitelist-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要選擇伺服器後載入</div></div>
+  </div>
+  <div id="mc-tab-bans" class="card" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="fi" placeholder="搜尋封鎖玩家..." style="max-width:220px">
+      <button class="btn btn-sm" onclick="loadMcBans()">重新整理</button>
+      <button class="btn btn-sm btn-p" style="margin-left:auto" onclick="openM('mc-ban-player')">+ 新增封鎖</button>
+    </div>
+    <div id="mc-bans-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要選擇伺服器後載入</div></div>
+  </div>
+  <div id="mc-tab-backups" class="card" style="display:none">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-sm btn-p" onclick="mcCreateBackup()">立即建立備份</button>
+    </div>
+    <div id="mc-backup-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要選擇伺服器後載入</div></div>
+  </div>
+  <div id="mc-tab-logs" class="card" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="fi" placeholder="過濾關鍵字（ERROR/WARN）..." style="max-width:240px" id="log-filter" oninput="filterLogs()">
+      <button class="btn btn-sm" onclick="loadMcLogs()">重新整理</button>
+    </div>
+    <div id="mc-log-content" style="font-family:monospace;font-size:11px;background:var(--bg);border-radius:6px;padding:12px;max-height:340px;overflow-y:auto;line-height:1.8">
+      <div style="color:var(--t3)">請選擇伺服器後載入日誌</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MC SETTINGS ==================== -->
+<div id="page-mc-settings" class="page">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <select class="fsel" style="width:200px" id="mcs-srv-sel" onchange="loadMcSettings()">
+      <option value="">— 選擇伺服器 —</option>
+    </select>
+    <button class="btn btn-sm" onclick="loadMcSettings()">載入設定</button>
+  </div>
+  <div class="tabs">
+    <div class="tab on" onclick="stab(this,'mcs-basic')">基本設定</div>
+    <div class="tab" onclick="stab(this,'mcs-maintenance')">維護模式</div>
+    <div class="tab" onclick="stab(this,'mcs-whitelist-cfg')">白名單設定</div>
+    <div class="tab" onclick="stab(this,'mcs-notify')">Discord 通知</div>
+  </div>
+  <div id="mcs-basic" class="card">
+    <div id="mcs-basic-form"><div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器後載入設定</div></div>
+  </div>
+  <div id="mcs-maintenance" style="display:none">
+    <div class="card">
+      <div class="card-title">維護模式</div>
+      <div class="al al-info" style="margin-bottom:12px">開啟維護模式後，伺服器將拒絕非白名單成員加入，並自動在 Discord 管理頻道發送通知。</div>
+      <div id="mcs-maint-status" style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span class="dot dot-off" id="maint-dot"></span><span style="font-size:13px;font-weight:500" id="maint-lbl">維護模式：關閉</span></div>
+      <div class="fg"><label class="fl">維護通知訊息（顯示給嘗試連線的玩家）</label><input class="fi" id="maint-msg" placeholder="伺服器維護中，請稍後再試..."></div>
+      <div class="fg"><label class="fl">預計完成時間（選填）</label><input class="fi" type="datetime-local" id="maint-end"></div>
+      <div class="fg"><label class="fl">自動在 Discord 管理頻道發送維護公告</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px"><label class="tog"><input type="checkbox" id="maint-dc-notify" checked><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">開啟/關閉維護時自動通知</span></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-p btn-sm" id="maint-toggle-btn" onclick="toggleMaintenance()">開啟維護模式</button>
+        <button class="btn btn-sm" onclick="toast('設定已儲存')">儲存設定</button>
+      </div>
+    </div>
+  </div>
+  <div id="mcs-whitelist-cfg" style="display:none">
+    <div class="card">
+      <div class="card-title">白名單設定</div>
+      <div class="fg">
+        <label class="fl">白名單功能</label>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">強制啟用白名單</span><label class="tog"><input type="checkbox" id="wl-enabled" checked><span class="tslider"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">非白名單玩家嘗試連線時通知 Discord</span><label class="tog"><input type="checkbox" id="wl-dc-notify" checked><span class="tslider"></span></label></div>
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">Discord 驗證通過自動加入白名單</span><label class="tog"><input type="checkbox" id="wl-auto-add"><span class="tslider"></span></label></div>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">拒絕連線提示訊息</label><input class="fi" id="wl-kick-msg" value="你不在白名單中！請至 Discord 申請加入。"></div>
+      <button class="btn btn-p btn-sm" onclick="toast('白名單設定已儲存')">儲存設定</button>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">白名單快速管理</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input class="fi" id="wl-add-name" placeholder="玩家名稱（Java 版精確名稱）" style="max-width:280px">
+        <button class="btn btn-sm btn-p" onclick="wlAddPlayer()">新增白名單</button>
+      </div>
+      <div id="wl-cfg-list"><div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div></div>
+    </div>
+  </div>
+  <div id="mcs-notify" style="display:none">
+    <div class="card">
+      <div class="card-title">Discord 通知連動（管理用途伺服器）</div>
+      <div class="al al-info" style="margin-bottom:12px">以下通知將發送到「管理用途 Discord 伺服器」，與公告頻道（玩家用途伺服器）分開設定。詳見敏感設定。</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">玩家數量達 80% 上限時通知</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">伺服器異常停機時通知</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">備份完成/失敗時通知</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">玩家被封鎖時通知</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px">TPS 低於 15 時通知</span><label class="tog"><input type="checkbox"><span class="tslider"></span></label></div>
+      </div>
+      <button class="btn btn-p btn-sm" style="margin-top:12px" onclick="toast('通知設定已儲存')">儲存設定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PTERODACTYL ==================== -->
+<div id="page-pterodactyl" class="page">
+  <div id="ptero-not-bound">
+    <div class="al al-warn" style="margin-bottom:14px">尚未綁定 Pterodactyl Panel。請填入以下資訊完成綁定。</div>
+  </div>
+  <div id="ptero-bound-status" style="display:none">
+    <div class="al al-ok" id="ptero-bound-msg" style="margin-bottom:14px">已成功綁定 Pterodactyl Panel。</div>
+  </div>
+  <div class="g2">
+    <div>
+      <div class="card" id="ptero-current-card" style="margin-bottom:12px;display:none">
+        <div class="card-title">目前綁定狀態</div>
+        <div class="fg"><label class="fl">Panel 網址</label><div class="maskf"><div id="ptero-url-mask" style="flex:1">—</div></div></div>
+        <div class="fg"><label class="fl">API Key</label><div class="maskf"><div id="ptero-key-mask" style="flex:1;letter-spacing:.08em">—</div></div></div>
+        <div style="display:flex;gap:7px">
+          <button class="btn btn-sm btn-p" onclick="pteroVerify()">重新驗證</button>
+          <button class="btn btn-sm btn-d" onclick="confirmAction('unbind')">撤銷綁定</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="ptero-form-title">綁定 Pterodactyl Panel</div>
+        <div class="fg"><label class="fl">Pterodactyl Panel 網址</label><input class="fi" type="url" id="ptero-url" placeholder="https://panel.example.com"><div class="fhint">必須使用 HTTPS</div></div>
+        <div class="fg"><label class="fl">Client API Key</label><input class="fi" type="password" id="ptero-key" placeholder="ptlc_..."><div class="fhint">在 Panel > 帳號 > API Credentials 建立 Client API Key（ptlc_ 開頭）</div></div>
+        <div id="ptero-bind-err" style="display:none;margin-bottom:8px"></div>
+        <button class="btn btn-p" id="ptero-bind-btn" onclick="pteroBind()">驗證並綁定</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">可存取的伺服器</div>
+      <div id="ptero-servers"><div style="color:var(--t3);font-size:12px;padding:10px 0">完成綁定後顯示可存取的伺服器列表</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== USERS ==================== -->
+<div id="page-users" class="page">
+  <div class="shdr"><div class="stitle">管理員帳號</div><button class="btn btn-p btn-sm" onclick="openM('add-admin')">+ 新增管理員</button></div>
+  <div class="card">
+    <table class="tbl">
+      <thead><tr><th>帳號</th><th>身分組</th><th>建立時間</th><th>最後登入</th><th>狀態</th><th>操作</th></tr></thead>
+      <tbody id="users-tbody">
+        <tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== ROLES ==================== -->
+<div id="page-roles" class="page">
+  <div class="al al-info" style="margin-bottom:14px">權限管理僅限「最高擁有者」存取。修改後快取在 5 分鐘內生效。</div>
+  <div class="g2">
+    <div>
+      <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">身分組列表</div>
+      <div style="display:flex;flex-direction:column;gap:6px" id="role-list">
+        <div class="card" style="border-color:var(--acc);cursor:pointer" onclick="selectRole('discord-admin')"><div style="display:flex;align-items:center;gap:8px"><span class="badge bacc">Discord 管理員（選取中）</span><span style="font-size:11px;color:var(--t3)">1 人</span></div></div>
+        <div class="card" style="cursor:pointer" onclick="selectRole('owner')"><div style="display:flex;align-items:center;gap:8px"><span class="badge bdanger">最高擁有者</span><span style="font-size:11px;color:var(--t3)">1 人 · 不可修改</span></div></div>
+        <div class="card" style="cursor:pointer" onclick="selectRole('super-admin')"><div style="display:flex;align-items:center;gap:8px"><span class="badge bwarn">超級管理員</span><span style="font-size:11px;color:var(--t3)">1 人</span></div></div>
+        <div class="card" style="cursor:pointer" onclick="selectRole('mc-admin')"><div style="display:flex;align-items:center;gap:8px"><span class="badge binfo">Minecraft 管理員</span><span style="font-size:11px;color:var(--t3)">1 人</span></div></div>
+        <div class="card" style="cursor:pointer" onclick="selectRole('auditor')"><div style="display:flex;align-items:center;gap:8px"><span class="badge bmute">審計員</span><span style="font-size:11px;color:var(--t3)">1 人</span></div></div>
+        <div class="card" style="cursor:pointer" onclick="selectRole('viewer')"><div style="display:flex;align-items:center;gap:8px"><span class="badge bmute">觀察員</span><span style="font-size:11px;color:var(--t3)">0 人</span></div></div>
+      </div>
+    </div>
+    <div class="card" id="role-perm-panel">
+      <div class="card-title" id="role-perm-title">Discord 管理員 許可操作</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em">Discord 操作</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>查看成員列表</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>禁言成員</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>踢出成員</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>封鎖成員</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>發送公告</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t3)">使用 @everyone（限擁有者）</span><label class="tog"><input type="checkbox" disabled><span class="tslider"></span></label></div>
+        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Minecraft 操作</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t3)">所有操作（無存取權）</span><label class="tog"><input type="checkbox" disabled><span class="tslider"></span></label></div>
+        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">系統操作</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>查看審計日誌</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:14px">
+        <button class="btn btn-p btn-sm" onclick="toast('權限已儲存，5 分鐘後生效')">儲存變更</button>
+        <button class="btn btn-sm">重設為預設值</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== AUDIT ==================== -->
+<div id="page-audit" class="page">
+  <div class="shdr"><div class="stitle">操作紀錄</div><button class="btn btn-sm" onclick="exportAudit()">匯出 CSV</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <input class="fi" type="date" id="audit-from" style="width:130px">
+    <span style="display:flex;align-items:center;font-size:12px;color:var(--t3)">至</span>
+    <input class="fi" type="date" id="audit-to" style="width:130px">
+    <select class="fsel" id="audit-cat" style="width:120px"><option value="">所有分類</option><option>DISCORD</option><option>MINECRAFT</option><option>SYSTEM</option><option>SECURITY</option></select>
+    <select class="fsel" id="audit-result" style="width:110px"><option value="">所有結果</option><option>成功</option><option>失敗</option><option>部分</option></select>
+    <button class="btn btn-p btn-sm" onclick="loadAuditLogs()">套用篩選</button>
+  </div>
+  <div class="card">
+    <table class="tbl">
+      <thead><tr><th>時間</th><th>執行者</th><th>操作</th><th>目標</th><th>結果</th><th></th></tr></thead>
+      <tbody id="audit-tbody"><tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">載入中...</td></tr></tbody>
+    </table>
+  </div>
+  <div style="display:flex;align-items:center;margin-top:10px;font-size:12px;color:var(--t3)">
+    <span id="audit-count">—</span>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn btn-sm" id="audit-prev" onclick="auditPage(-1)">上一頁</button>
+      <button class="btn btn-sm" id="audit-next" onclick="auditPage(1)">下一頁</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SENSITIVE ==================== -->
+<div id="page-sensitive" class="page">
+  <div class="al al-danger" style="margin-bottom:14px">此頁面僅限「最高擁有者」存取。所有修改均即時記錄審計日誌並發送 Discord 通知。</div>
+  <div class="ss">
+    <div class="ss-title">管理用途 Discord 伺服器（審計日誌 + 管理通知）</div>
+    <div class="ss-sub">此伺服器用於接收系統審計日誌、高風險操作警示、玩家管理通知。由管理團隊內部使用。</div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Discord Guild ID（管理伺服器）</label><input class="fi" id="mgmt-guild-id" placeholder="管理伺服器 ID"></div>
+      <div class="fg"><label class="fl">審計日誌頻道 ID</label><input class="fi" id="mgmt-audit-ch" placeholder="頻道 ID"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">高優先度警示頻道 ID</label><input class="fi" id="mgmt-alert-ch" placeholder="頻道 ID"></div>
+      <div class="fg"><label class="fl">玩家管理通知頻道 ID</label><input class="fi" id="mgmt-player-ch" placeholder="頻道 ID"></div>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-sm" onclick="testChannel('管理伺服器審計頻道')">測試連線</button>
+      <button class="btn btn-sm btn-p" onclick="saveSensitive('mgmt')">儲存</button>
+    </div>
+  </div>
+  <div class="ss">
+    <div class="ss-title">玩家用途 Discord 伺服器（公告頻道 + 玩家互動）</div>
+    <div class="ss-sub">此伺服器用於發送對玩家的公告，例如伺服器維護通知、活動公告等。與管理伺服器可以相同或不同。</div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Discord Guild ID（玩家伺服器）</label><input class="fi" id="pub-guild-id" placeholder="玩家伺服器 ID"></div>
+      <div class="fg"><label class="fl">預設公告頻道 ID</label><input class="fi" id="pub-announce-ch" placeholder="頻道 ID"></div>
+    </div>
+    <div class="fg"><label class="fl">可供選擇的公告頻道（每行一個 頻道ID:頻道名稱）</label>
+      <textarea class="ftextarea" id="pub-channels" rows="4" placeholder="1234567890:一般公告&#10;9876543210:伺服器更新&#10;5555666677:活動通知"></textarea>
+      <div class="fhint">填入後，發送公告頁面的頻道選單將顯示這些選項</div>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-sm" onclick="testChannel('玩家伺服器公告頻道')">測試連線</button>
+      <button class="btn btn-sm btn-p" onclick="saveSensitive('pub')">儲存</button>
+    </div>
+  </div>
+  <div class="ss">
+    <div class="ss-title">Discord Bot 設定</div>
+    <div class="ss-sub">Bot Token 加密儲存於 Cloudflare Workers Secrets，前端永遠無法取得明文。Bot 同時服務管理伺服器和玩家伺服器。</div>
+    <div class="fg"><label class="fl">Bot Token</label><input class="fi" type="password" id="bot-token" placeholder="Bot Token（僅修改時填入）"></div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:12px;color:var(--t2)" id="bot-status-row"><span class="dot dot-off" id="bot-dot"></span><span id="bot-status-text">Bot 連線狀態未知</span></div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-sm" onclick="checkBotStatus()">檢查連線狀態</button>
+      <button class="btn btn-sm btn-d" onclick="saveSensitive('bot')">更新 Token</button>
+    </div>
+  </div>
+  <div class="ss">
+    <div class="ss-title">高風險操作驗證設定</div>
+    <div class="ss-sub">開啟後，以下操作將強制顯示二次確認對話框</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>刪除管理員帳號</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>開啟緊急鎖定</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>修改 Discord Bot Token</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>關閉 Minecraft 伺服器</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>備份還原</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+    </div>
+    <button class="btn btn-p btn-sm" style="margin-top:12px" onclick="toast('驗證設定已儲存')">儲存設定</button>
+  </div>
+  <div class="ss">
+    <div class="ss-title">緊急鎖定模式</div>
+    <div class="ss-sub">開啟後所有非擁有者帳號的 API 請求將立即被拒絕</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="dot dot-ok" id="lock-dot"></span><span style="font-size:13px;font-weight:500;color:var(--ok)" id="lock-status">系統正常運作中</span></div>
+    <button class="btn btn-d" id="lock-btn" onclick="confirmAction('emergency-lock')">開啟緊急鎖定</button>
+  </div>
+  <div class="ss">
+    <div class="ss-title">系統維護模式</div>
+    <div class="ss-sub">開啟後非擁有者使用者將看到維護頁面</div>
+    <div class="fg"><label class="fl">系統公告訊息（顯示在所有頁面頂部）</label><input class="fi" id="sys-announce" placeholder="例：伺服器將於今晚維護..."></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><label class="tog"><input type="checkbox" id="sys-maint"><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">開啟系統維護模式</span></div>
+    <button class="btn btn-p btn-sm" onclick="toast('系統維護設定已儲存')">儲存</button>
+  </div>
+</div>
+
+<!-- ==================== STATUS ==================== -->
+<div id="page-status" class="page">
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">Discord Bot</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="dot dot-off" id="st-bot-dot"></span><span style="font-size:13px;font-weight:500" id="st-bot-lbl">狀態未知</span></div>
+      <table class="tbl" style="font-size:12px" id="st-bot-table">
+        <tr><td style="color:var(--t3)">Ping</td><td>—</td></tr>
+        <tr><td style="color:var(--t3)">最後心跳</td><td>—</td></tr>
+        <tr><td style="color:var(--t3)">管理伺服器</td><td>—</td></tr>
+        <tr><td style="color:var(--t3)">玩家伺服器</td><td>—</td></tr>
+      </table>
+      <button class="btn btn-sm" style="margin-top:10px" onclick="checkBotStatus()">刷新狀態</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Firebase 服務額度</div>
+      <div id="st-firebase"><div style="color:var(--t3);font-size:12px;padding:10px 0">需要 Firebase 服務帳號才能讀取額度資訊</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Pterodactyl 綁定狀態</div>
+    <table class="tbl" id="st-ptero-tbl">
+      <thead><tr><th>管理員</th><th>Panel URL</th><th>最後驗證</th><th>伺服器數</th><th>狀態</th></tr></thead>
+      <tbody><tr><td colspan="5" style="color:var(--t3);padding:16px;text-align:center">從 Firestore 載入綁定資訊中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== ALERTS ==================== -->
+<div id="page-alerts" class="page">
+  <div class="shdr"><div class="stitle">警示中心</div><button class="btn btn-sm" onclick="clearAllAlerts()">全部標為已確認</button></div>
+  <div id="alert-list">
+    <div class="card" style="border-left:3px solid var(--danger);margin-bottom:10px" id="alert-1">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="badge bdanger">嚴重</span><span style="font-size:11px;color:var(--t3)">系統啟動時偵測</span></div>
+        <div style="font-size:13px;font-weight:500">尚未設定 Discord Bot Token</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:2px">請前往「敏感設定」完成 Bot 設定</div></div>
+        <button class="btn btn-sm" onclick="document.getElementById('alert-1').remove();toast('警示已確認')">確認</button>
+      </div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--warn);margin-bottom:10px" id="alert-2">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="badge bwarn">警告</span><span style="font-size:11px;color:var(--t3)">系統啟動時偵測</span></div>
+        <div style="font-size:13px;font-weight:500">尚未綁定 Pterodactyl Panel</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:2px">前往「Pterodactyl 綁定」頁面完成設定</div></div>
+        <button class="btn btn-sm" onclick="pg('pterodactyl','Pterodactyl 綁定')">前往設定</button>
+      </div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--warn);margin-bottom:10px" id="alert-3">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="badge bwarn">警告</span><span style="font-size:11px;color:var(--t3)">系統啟動時偵測</span></div>
+        <div style="font-size:13px;font-weight:500">管理 Discord 伺服器尚未設定</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:2px">前往「敏感設定」設定管理用途 Discord 伺服器</div></div>
+        <button class="btn btn-sm" onclick="pg('sensitive','敏感設定')">前往設定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PROFILE ==================== -->
+<div id="page-profile" class="page">
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">帳號資訊</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#000">擁</div>
+        <div><div style="font-size:15px;font-weight:600" id="prof-name">擁有者帳號</div><div style="font-size:12px;color:var(--t3)" id="prof-email">—</div><span class="badge bdanger" style="margin-top:5px">最高擁有者</span></div>
+      </div>
+      <div class="fg"><label class="fl">顯示名稱</label><input class="fi" id="prof-display" placeholder="顯示名稱"></div>
+      <div class="fg"><label class="fl">電子郵件</label><input class="fi" id="prof-email-input" placeholder="—" disabled><div class="fhint">Email 由 Firebase 管理，不可在此修改</div></div>
+      <div class="fg"><label class="fl">新密碼（留空則不修改）</label><input class="fi" type="password" id="prof-pw" placeholder="••••••••"></div>
+      <button class="btn btn-p btn-sm" onclick="saveProfile()">儲存</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Pterodactyl 綁定</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px" id="prof-ptero-status">
+        <span class="dot dot-off" id="prof-ptero-dot"></span><span style="font-size:13px" id="prof-ptero-lbl">尚未綁定</span>
+        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="pg('pterodactyl','Pterodactyl 綁定')">管理</button>
+      </div>
+      <div class="card-title">最近登入紀錄</div>
+      <div id="prof-logins"><div style="color:var(--t3);font-size:12px;padding:10px 0">從 Firebase 載入中...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SETUP ==================== -->
+<div id="page-setup" class="page">
+  <div style="max-width:580px;margin:0 auto">
+    <div style="margin-bottom:20px"><div style="font-size:17px;font-weight:600;margin-bottom:3px">首次設定嚮導</div><div style="font-size:13px;color:var(--t3)">歡迎使用 LLS懶懶生存管理面板。完成以下步驟初始化系統。</div></div>
+    <div class="wsteps">
+      <div class="wstep done"><div class="wsnum">1</div><div class="wslbl">身份確認</div></div>
+      <div class="wstep cur"><div class="wsnum">2</div><div class="wslbl">管理伺服器</div></div>
+      <div class="wstep"><div class="wsnum">3</div><div class="wslbl">玩家伺服器</div></div>
+      <div class="wstep"><div class="wsnum">4</div><div class="wslbl">Bot 設定</div></div>
+      <div class="wstep"><div class="wsnum">5</div><div class="wslbl">Pterodactyl</div></div>
+      <div class="wstep"><div class="wsnum">6</div><div class="wslbl">完成</div></div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:3px">設定管理用途 Discord 伺服器</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:14px">此伺服器用於接收審計日誌與管理通知（僅管理員可見）</div>
+      <div class="fg"><label class="fl">Discord Guild ID（管理伺服器）</label><input class="fi" placeholder="例：1234567890123456789"><div class="fhint">Discord 伺服器名稱右鍵 > 複製伺服器 ID（需開啟開發者模式）</div></div>
+      <div class="fg"><label class="fl">審計日誌頻道 ID</label><input class="fi" placeholder="例：9876543210987654321"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-sm">上一步</button>
+        <button class="btn btn-sm" onclick="toast('測試訊息已發送到頻道')">測試頻道連線</button>
+        <button class="btn btn-p btn-sm" style="margin-left:auto" onclick="toast('進入下一步')">下一步</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- DC Timeout -->
+<div id="m-timeout" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">對成員禁言</div>
+    <div class="mdl-sub">此操作將立即生效並記錄審計日誌</div>
+    <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <div id="tm-av" class="mav" style="background:rgba(239,68,68,.18);color:var(--danger)">?</div>
+      <div><div style="font-size:12px;font-weight:500" id="tm-name">—</div><div style="font-size:11px;color:var(--t3)" id="tm-meta">—</div></div>
+    </div>
+    <div class="fg"><label class="fl">禁言時長</label><select class="fsel" id="tm-dur"><option>10 分鐘</option><option selected>30 分鐘</option><option>1 小時</option><option>12 小時</option><option>1 天</option><option>7 天（最長）</option></select></div>
+    <div class="fg"><label class="fl">原因（必填，最少 10 字）</label><input class="fi" id="tm-reason" placeholder="請描述禁言原因..."></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="tog"><input type="checkbox" id="tm-dm" checked><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">發送私訊通知被禁言成員</span></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('timeout')">取消</button><button class="btn btn-sm btn-p" onclick="execTimeout()">確認禁言</button></div>
+  </div>
+</div>
+
+<!-- DC Kick -->
+<div id="m-kick" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">踢出成員</div>
+    <div class="mdl-sub">被踢出的成員可重新加入伺服器</div>
+    <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:500" id="kk-name">—</div>
+    </div>
+    <div class="fg"><label class="fl">原因（必填）</label><input class="fi" id="kk-reason" placeholder="請描述踢出原因..."></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="tog"><input type="checkbox" id="kk-dm"><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">發送私訊通知</span></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('kick')">取消</button><button class="btn btn-sm btn-d" onclick="execKick()">確認踢出</button></div>
+  </div>
+</div>
+
+<!-- DC Ban -->
+<div id="m-ban" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">封鎖成員</div>
+    <div class="mdl-sub">封鎖後成員將無法加入伺服器</div>
+    <div style="background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:500" id="ban-name">—</div>
+    </div>
+    <div class="fg"><label class="fl">原因（必填）</label><input class="fi" id="ban-reason" placeholder="請描述封鎖原因..."></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">封鎖類型</label><select class="fsel" id="ban-type"><option selected>永久封鎖</option><option>暫時封鎖</option></select></div>
+      <div class="fg"><label class="fl">暫時封鎖到期時間</label><input class="fi" type="datetime-local" id="ban-expires"></div>
+    </div>
+    <div class="fg"><label class="fl">清除訊息天數</label><select class="fsel" id="ban-del"><option selected value="0">不清除</option><option value="1">1 天</option><option value="3">3 天</option><option value="7">7 天</option></select></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="tog"><input type="checkbox" id="ban-sync" checked><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">同步加入系統黑名單</span></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('ban')">取消</button><button class="btn btn-sm btn-d" onclick="execBan()">確認封鎖</button></div>
+  </div>
+</div>
+
+<!-- MC Kick Player -->
+<div id="m-mc-kick" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">踢出 Minecraft 玩家</div>
+    <div class="mdl-sub">玩家將立即斷線，可重新連線</div>
+    <div class="fg"><label class="fl">玩家</label><input class="fi" id="mck-name" disabled></div>
+    <div class="fg"><label class="fl">踢出原因（顯示在玩家斷線畫面）</label><input class="fi" id="mck-reason" placeholder="例：違反伺服器規則"></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('mc-kick')">取消</button><button class="btn btn-sm btn-d" onclick="execMcKick()">確認踢出</button></div>
+  </div>
+</div>
+
+<!-- MC Ban Player -->
+<div id="m-mc-ban-player" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">封鎖 Minecraft 玩家</div>
+    <div class="mdl-sub">封鎖後玩家無法連線此伺服器</div>
+    <div class="fg"><label class="fl">玩家名稱</label><input class="fi" id="mcb-name" placeholder="玩家名稱"></div>
+    <div class="fg"><label class="fl">封鎖原因</label><input class="fi" id="mcb-reason" placeholder="請描述封鎖原因..."></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">到期時間（留空永久）</label><input class="fi" type="datetime-local" id="mcb-expires"></div>
+      <div class="fg" style="display:flex;align-items:flex-end;padding-bottom:13px"><label class="tog" style="margin-right:8px"><input type="checkbox" id="mcb-dc-sync" checked><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">同步通知 Discord</span></div>
+    </div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('mc-ban-player')">取消</button><button class="btn btn-sm btn-d" onclick="execMcBan()">確認封鎖</button></div>
+  </div>
+</div>
+
+<!-- MC Broadcast -->
+<div id="m-mc-broadcast" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">伺服器廣播訊息</div>
+    <div class="mdl-sub">訊息將在遊戲內顯示給所有在線玩家</div>
+    <div class="fg"><label class="fl">訊息內容</label><textarea class="ftextarea" id="bc-msg" rows="3" placeholder="例：伺服器將在 10 分鐘後重啟，請妥善保存進度！"></textarea></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="tog"><input type="checkbox" id="bc-dc"><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">同步發送到 Discord 管理頻道</span></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('mc-broadcast')">取消</button><button class="btn btn-sm btn-p" onclick="execBroadcast()">發送廣播</button></div>
+  </div>
+</div>
+
+<!-- Add Whitelist -->
+<div id="m-add-whitelist" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">新增白名單</div>
+    <div class="mdl-sub">輸入玩家名稱（Java 版需使用精確大小寫）</div>
+    <div class="fg"><label class="fl">玩家名稱</label><input class="fi" id="wl-player-name" placeholder="例：Steve_Builder"></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="tog"><input type="checkbox" id="wl-dc-notify-modal" checked><span class="tslider"></span></label><span style="font-size:12px;color:var(--t2)">通知 Discord 管理頻道</span></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('add-whitelist')">取消</button><button class="btn btn-sm btn-p" onclick="execAddWhitelist()">新增白名單</button></div>
+  </div>
+</div>
+
+<!-- Add Admin -->
+<div id="m-add-admin" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">新增管理員</div>
+    <div class="mdl-sub">輸入 Email，系統將查詢 Firebase 帳號是否存在</div>
+    <div class="fg"><label class="fl">Email</label><input class="fi" id="aa-email" placeholder="newadmin@example.com"></div>
+    <div class="fg"><label class="fl">指派身分組</label>
+      <select class="fsel" id="aa-role">
+        <option value="super-admin">超級管理員</option>
+        <option value="discord-admin">Discord 管理員</option>
+        <option value="mc-admin" selected>Minecraft 管理員</option>
+        <option value="auditor">審計員</option>
+        <option value="viewer">觀察員</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">備註（選填）</label><input class="fi" id="aa-note" placeholder="管理員備註..."></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('add-admin')">取消</button><button class="btn btn-sm btn-p" onclick="execAddAdmin()">新增</button></div>
+  </div>
+</div>
+
+<!-- Add Rule -->
+<div id="m-add-rule" class="mov">
+  <div class="mdl">
+    <div class="mdl-title">新增自動化規則</div>
+    <div class="mdl-sub">設定觸發條件與執行動作</div>
+    <div class="fg"><label class="fl">規則名稱</label><input class="fi" placeholder="規則名稱..."></div>
+    <div class="fg"><label class="fl">觸發條件</label><select class="fsel"><option>新成員加入</option><option>訊息含關鍵字</option><option>完成驗證</option><option>計時器</option></select></div>
+    <div class="fg"><label class="fl">條件參數</label><input class="fi" placeholder="例：廣告關鍵字：bit.ly, discord.gg"></div>
+    <div class="fg"><label class="fl">執行動作</label><select class="fsel"><option>踢出成員</option><option>禁言 30 分鐘</option><option>MC 白名單新增</option><option>發送私訊</option><option>Discord 通知</option></select></div>
+    <div class="mdl-foot"><button class="btn btn-sm" onclick="closeM('add-rule')">取消</button><button class="btn btn-sm btn-p" onclick="closeM('add-rule');toast('規則已建立')">建立規則</button></div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div id="m-confirm" class="mov">
+  <div class="mdl">
+    <div class="mdl-title" id="cf-title">確認操作</div>
+    <div class="mdl-sub" id="cf-sub"></div>
+    <div class="al al-danger" id="cf-alert"></div>
+    <div class="fg" style="margin-top:8px">
+      <label class="fl" id="cf-label"></label>
+      <input class="fi" id="cf-input" style="border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.04)">
+    </div>
+    <div class="mdl-foot">
+      <button class="btn btn-sm" onclick="closeM('confirm')">取消</button>
+      <button class="btn btn-sm btn-d" id="cf-btn">確認</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────
+const APP = {
+  currentUser: null,
+  ptero: { bound: false, url: '', servers: [] },
+  mc: { selectedServer: null },
+  dc: { members: [], page: 0, perPage: 10 },
+  audit: { logs: [], page: 0, perPage: 20 },
+  maintenance: false,
+  annFields: [],
+  annHistory: [],
+  settings: {
+    mgmt: { guildId:'', auditCh:'', alertCh:'', playerCh:'' },
+    pub: { guildId:'', announceCh:'', channels:[] },
+    bot: { connected: false }
+  }
+};
+
+// ─── Auth ─────────────────────────────────────────────────────
+function doLogin(userData) {
+  if (userData) {
+    APP.currentUser = userData;
+  } else {
+    const email = document.getElementById('l-email').value.trim();
+    const pw = document.getElementById('l-pw').value;
+    if (!email || !pw) return;
+    APP.currentUser = { email, displayName: email.split('@')[0], role: 'owner' };
+  }
+  const uname = document.getElementById('sb-uname');
+  if (uname) uname.textContent = APP.currentUser.displayName || APP.currentUser.email;
+  const urole = document.getElementById('sb-urole');
+  if (urole) urole.textContent = '最高擁有者';
+  initApp();
+}
+function doLogout() {
+  APP.currentUser = null;
+  // Notify parent React app to sign out
+  window.parent.postMessage({ type: 'LOGOUT' }, '*');
+}
+
+// ─── Navigation ───────────────────────────────────────────────
+function pg(id, title) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const p = document.getElementById('page-' + id);
+  if (p) p.classList.add('active');
+  document.getElementById('ptitle').textContent = title || id;
+  document.querySelectorAll('.ni').forEach(n => {
+    const oc = n.getAttribute('onclick') || '';
+    n.classList.toggle('on', oc.includes("'" + id + "'"));
+  });
+}
+function stab(el, tid) {
+  const parent = el.closest('.tabs');
+  if (!parent) return;
+  parent.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  const page = el.closest('.page');
+  if (!page) return;
+  page.querySelectorAll('[id^="dt-"],[id^="mc-tab-"],[id^="mcs-"]').forEach(t => t.style.display = 'none');
+  const tab = document.getElementById(tid);
+  if (tab) tab.style.display = '';
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+function initApp() {
+  loadDashboard();
+  loadAuditLogs();
+  syncPteroServersToSelects();
+}
+
+// ─── Dashboard ────────────────────────────────────────────────
+function loadDashboard() {
+  document.getElementById('s-ops').textContent = '0';
+  document.getElementById('s-dc-members').textContent = '—';
+  document.getElementById('s-dc-sub').textContent = '待 Bot 連線';
+  document.getElementById('s-mc-players').textContent = '—';
+  document.getElementById('s-mc-sub').textContent = '待 Pterodactyl 綁定';
+  document.getElementById('dash-servers').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態</div>';
+  document.getElementById('dash-discord').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot 設定後顯示 Discord 摘要</div>';
+  document.getElementById('dash-logs').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄</div>';
+}
+
+// ─── Pterodactyl ──────────────────────────────────────────────
+function pteroBind() {
+  const url = document.getElementById('ptero-url').value.trim();
+  const key = document.getElementById('ptero-key').value.trim();
+  const errEl = document.getElementById('ptero-bind-err');
+  errEl.style.display = 'none';
+  if (!url || !key) { showPteroErr('請填入 Panel 網址與 API Key'); return; }
+  if (!url.startsWith('https://')) { showPteroErr('Panel 網址必須以 https:// 開頭'); return; }
+  if (!key.startsWith('ptlc_')) { showPteroErr('API Key 格式不正確（應以 ptlc_ 開頭）'); return; }
+  document.getElementById('ptero-bind-btn').textContent = '驗證中...';
+  document.getElementById('ptero-bind-btn').disabled = true;
+  // Simulate API call — real implementation calls Workers /api/minecraft/bind
+  setTimeout(() => {
+    document.getElementById('ptero-bind-btn').textContent = '驗證並綁定';
+    document.getElementById('ptero-bind-btn').disabled = false;
+    APP.ptero.bound = true;
+    APP.ptero.url = url;
+    APP.ptero.servers = [
+      { id: 'lls-survival', name: 'LLS懶懶生存 - Survival', status: 'running', players: 0, maxPlayers: 50 },
+      { id: 'lls-creative', name: 'LLS懶懶生存 - Creative', status: 'offline', players: 0, maxPlayers: 30 }
+    ];
+    document.getElementById('ptero-not-bound').style.display = 'none';
+    document.getElementById('ptero-bound-status').style.display = 'block';
+    document.getElementById('ptero-bound-msg').textContent = '已成功綁定 Pterodactyl Panel：' + url;
+    document.getElementById('ptero-current-card').style.display = 'block';
+    document.getElementById('ptero-url-mask').textContent = url;
+    document.getElementById('ptero-key-mask').textContent = 'ptlc_•••••••••••••••••••••••••••' + key.slice(-4);
+    document.getElementById('ptero-form-title').textContent = '更新綁定';
+    renderPteroServers();
+    syncPteroServersToSelects();
+    toast('Pterodactyl 綁定成功，找到 ' + APP.ptero.servers.length + ' 台伺服器');
+    writeAuditLog('SYSTEM_BINDING_CREATE', 'BINDING', url, '成功');
+  }, 1500);
+}
+function showPteroErr(msg) {
+  const el = document.getElementById('ptero-bind-err');
+  el.className = 'al al-danger';
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function pteroVerify() {
+  if (!APP.ptero.bound) { toast('尚未綁定'); return; }
+  toast('重新驗證成功');
+  writeAuditLog('SYSTEM_BINDING_VERIFY', 'BINDING', APP.ptero.url, '成功');
+}
+function renderPteroServers() {
+  const el = document.getElementById('ptero-servers');
+  if (!APP.ptero.servers.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">無可存取的伺服器</div>'; return; }
+  el.innerHTML = APP.ptero.servers.map(s => `
+    <div class="sr">
+      <span class="dot ${s.status==='running'?'dot-ok':'dot-off'}"></span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${s.name}</div><div style="font-size:11px;color:var(--t3)">ID: ${s.id}</div></div>
+      <span class="badge ${s.status==='running'?'bok':'bmute'}">${s.status==='running'?'運行中':'離線'}</span>
+    </div>`).join('');
+}
+function syncPteroServersToSelects() {
+  ['mc-srv-sel','mcs-srv-sel'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— 選擇伺服器 —</option>';
+    APP.ptero.servers.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+    if (cur) sel.value = cur;
+  });
+}
+
+// ─── MC Controls ──────────────────────────────────────────────
+function switchMcServer() {
+  const id = document.getElementById('mc-srv-sel').value;
+  if (!id) return;
+  const srv = APP.ptero.servers.find(s => s.id === id);
+  if (!srv) return;
+  APP.mc.selectedServer = srv;
+  updateMcStatusUI(srv);
+  loadMcPlayers();
+}
+function updateMcStatusUI(srv) {
+  const running = srv.status === 'running';
+  document.getElementById('mc-status-dot').className = 'dot ' + (running ? 'dot-ok' : 'dot-off');
+  document.getElementById('mc-status-badge').textContent = running ? '運行中' : '離線';
+  document.getElementById('mc-status-badge').className = 'badge ' + (running ? 'bok' : 'bmute');
+  if (running) {
+    document.getElementById('mc-cpu').textContent = '—';
+    document.getElementById('mc-mem').textContent = '—';
+    document.getElementById('mc-players').textContent = srv.players + ' / ' + srv.maxPlayers;
+    document.getElementById('mc-players-bar').style.width = (srv.players / srv.maxPlayers * 100) + '%';
+    document.getElementById('mc-uptime').textContent = '需 API 連線';
+  } else {
+    ['mc-cpu','mc-mem','mc-players'].forEach(id => document.getElementById(id).textContent = '—');
+  }
+}
+function mcPower(signal) {
+  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
+  const actions = { start:'啟動', stop:'停止', restart:'重啟', kill:'強制終止' };
+  toast('已發送' + actions[signal] + '指令到 ' + APP.mc.selectedServer.name);
+  writeAuditLog('MC_SERVER_' + signal.toUpperCase(), 'SERVER', APP.mc.selectedServer.name, '成功');
+}
+function loadMcPlayers() {
+  const el = document.getElementById('mc-player-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>'; return; }
+  el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">在線玩家列表需透過 Pterodactyl API 取得，實作後將即時顯示。</div>';
+}
+function filterMcPlayers() {}
+function loadWhitelist() {
+  const el = document.getElementById('mc-whitelist-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
+  el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">白名單需透過 Pterodactyl API 取得</div>';
+}
+function filterWhitelist() {}
+function loadMcBans() {
+  const el = document.getElementById('mc-bans-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
+  el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">封鎖名單需透過 Pterodactyl API 取得</div>';
+}
+function mcCreateBackup() {
+  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
+  toast('備份任務已建立，預計 2–5 分鐘完成');
+  writeAuditLog('MC_BACKUP_CREATE', 'SERVER', APP.mc.selectedServer.name, '成功');
+}
+function loadMcLogs() {
+  const el = document.getElementById('mc-log-content');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3)">請先選擇伺服器</div>'; return; }
+  el.innerHTML = '<div style="color:var(--t3)">日誌需透過 Pterodactyl Console API 取得，實作後將即時顯示。</div>';
+}
+function filterLogs() {}
+function loadMcSettings() {
+  const id = document.getElementById('mcs-srv-sel').value;
+  if (!id) { document.getElementById('mcs-basic-form').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>'; return; }
+  const srv = APP.ptero.servers.find(s => s.id === id);
+  if (!srv) return;
+  document.getElementById('mcs-basic-form').innerHTML = `
+    <div class="fg"><label class="fl">伺服器描述 (MOTD)</label><input class="fi" value="${srv.name}" id="mcs-motd"></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">最大玩家數</label><input class="fi" type="number" value="${srv.maxPlayers}" id="mcs-maxplayers"></div>
+      <div class="fg"><label class="fl">遊戲難度</label><select class="fsel" id="mcs-diff"><option>Easy</option><option selected>Normal</option><option>Hard</option></select></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">預設遊戲模式</label><select class="fsel" id="mcs-mode"><option selected>Survival</option><option>Creative</option><option>Adventure</option></select></div>
+      <div class="fg"><label class="fl">Server Port</label><input class="fi" value="25565" disabled><div class="fhint">需在 Pterodactyl Panel 修改</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>強制白名單</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>啟用 PVP</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>正版驗證 (Online Mode)</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="saveMcBasicSettings()">儲存設定</button>`;
+}
+function saveMcBasicSettings() {
+  toast('設定已儲存，將在下次重啟後生效');
+  writeAuditLog('MC_CONFIG_UPDATE', 'SERVER', document.getElementById('mcs-srv-sel').value, '成功');
+}
+
+// ─── Maintenance ──────────────────────────────────────────────
+let maintenanceOn = false;
+function toggleMaintenance() {
+  maintenanceOn = !maintenanceOn;
+  document.getElementById('maint-dot').className = 'dot ' + (maintenanceOn ? 'dot-warn' : 'dot-off');
+  document.getElementById('maint-lbl').textContent = '維護模式：' + (maintenanceOn ? '開啟中' : '關閉');
+  document.getElementById('maint-lbl').style.color = maintenanceOn ? 'var(--warn)' : 'var(--t1)';
+  document.getElementById('maint-toggle-btn').textContent = maintenanceOn ? '關閉維護模式' : '開啟維護模式';
+  document.getElementById('maint-toggle-btn').className = maintenanceOn ? 'btn btn-sm btn-ok' : 'btn btn-p btn-sm';
+  const msg = document.getElementById('maint-msg').value;
+  toast('維護模式已' + (maintenanceOn ? '開啟' : '關閉') + (msg ? '：' + msg : ''));
+  writeAuditLog(maintenanceOn ? 'MC_MAINTENANCE_ON' : 'MC_MAINTENANCE_OFF', 'SERVER', '全體伺服器', '成功');
+}
+function wlAddPlayer() {
+  const name = document.getElementById('wl-add-name').value.trim();
+  if (!name) { toast('請輸入玩家名稱'); return; }
+  if (!APP.mc.selectedServer && !document.getElementById('mcs-srv-sel').value) { toast('請先選擇伺服器'); return; }
+  toast('已新增 ' + name + ' 至白名單');
+  document.getElementById('wl-add-name').value = '';
+  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
+}
+
+// ─── DC Members ───────────────────────────────────────────────
+let currentMember = null;
+function loadDCMembers() {
+  document.getElementById('dc-member-list').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">Discord Bot 連線後，成員列表將從 Discord API 取得。<br>請先在「敏感設定」完成 Bot Token 設定。</div>';
+  document.getElementById('dc-member-count').textContent = '需要 Bot 連線';
+}
+function filterMembers() {}
+function dcPage(dir) { APP.dc.page = Math.max(0, APP.dc.page + dir); }
+
+// ─── Discord Operations ───────────────────────────────────────
+function openTimeout(memberId, name, meta) {
+  currentMember = { id: memberId, name, meta };
+  document.getElementById('tm-av').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('tm-name').textContent = name;
+  document.getElementById('tm-meta').textContent = meta || '';
+  document.getElementById('tm-reason').value = '';
+  openM('timeout');
+}
+function execTimeout() {
+  const reason = document.getElementById('tm-reason').value.trim();
+  if (!reason || reason.length < 10) { toast('原因至少 10 個字'); return; }
+  const dur = document.getElementById('tm-dur').value;
+  closeM('timeout');
+  toast('已對 ' + (currentMember?.name || '成員') + ' 禁言 ' + dur);
+  writeAuditLog('DISCORD_MEMBER_TIMEOUT', 'USER', currentMember?.name, '成功', { duration: dur, reason });
+  currentMember = null;
+}
+function openKick(memberId, name) {
+  currentMember = { id: memberId, name };
+  document.getElementById('kk-name').textContent = name;
+  document.getElementById('kk-reason').value = '';
+  openM('kick');
+}
+function execKick() {
+  const reason = document.getElementById('kk-reason').value.trim();
+  if (!reason) { toast('請填入原因'); return; }
+  closeM('kick');
+  toast('已踢出 ' + (currentMember?.name || '成員'));
+  writeAuditLog('DISCORD_MEMBER_KICK', 'USER', currentMember?.name, '成功', { reason });
+  currentMember = null;
+}
+function openBan(memberId, name) {
+  currentMember = { id: memberId, name };
+  document.getElementById('ban-name').textContent = name;
+  document.getElementById('ban-reason').value = '';
+  openM('ban');
+}
+function execBan() {
+  const reason = document.getElementById('ban-reason').value.trim();
+  if (!reason) { toast('請填入原因'); return; }
+  closeM('ban');
+  toast('已封鎖 ' + (currentMember?.name || '成員') + '，審計日誌已記錄');
+  writeAuditLog('DISCORD_MEMBER_BAN', 'USER', currentMember?.name, '成功', { reason });
+  currentMember = null;
+}
+let kickPlayerTarget = null;
+function openMcKick(name) {
+  kickPlayerTarget = name;
+  document.getElementById('mck-name').value = name;
+  document.getElementById('mck-reason').value = '';
+  openM('mc-kick');
+}
+function execMcKick() {
+  const reason = document.getElementById('mck-reason').value.trim();
+  if (!reason) { toast('請填入原因'); return; }
+  closeM('mc-kick');
+  toast('已踢出玩家 ' + kickPlayerTarget);
+  writeAuditLog('MC_PLAYER_KICK', 'PLAYER', kickPlayerTarget, '成功', { reason });
+  kickPlayerTarget = null;
+}
+function execMcBan() {
+  const name = document.getElementById('mcb-name').value.trim();
+  const reason = document.getElementById('mcb-reason').value.trim();
+  if (!name || !reason) { toast('請填入玩家名稱與原因'); return; }
+  closeM('mc-ban-player');
+  toast('已封鎖玩家 ' + name);
+  writeAuditLog('MC_PLAYER_BAN', 'PLAYER', name, '成功', { reason });
+}
+function execBroadcast() {
+  const msg = document.getElementById('bc-msg').value.trim();
+  if (!msg) { toast('請填入廣播訊息'); return; }
+  closeM('mc-broadcast');
+  toast('廣播訊息已發送：' + msg.substring(0, 30) + (msg.length > 30 ? '...' : ''));
+  writeAuditLog('MC_BROADCAST', 'SERVER', APP.mc.selectedServer?.name || '—', '成功');
+}
+function execAddWhitelist() {
+  const name = document.getElementById('wl-player-name').value.trim();
+  if (!name) { toast('請填入玩家名稱'); return; }
+  closeM('add-whitelist');
+  toast('已新增 ' + name + ' 至白名單');
+  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
+}
+
+// ─── Announce ─────────────────────────────────────────────────
+const TEMPLATES = {
+  custom: { title:'', desc:'', color:'#5865F2', footer:'' },
+  maintenance: {
+    title: '伺服器維護通知',
+    desc: '**LLS懶懶生存** 將於近期進行例行維護。\n\n維護期間伺服器將暫時關閉，請在維護前妥善保存您的遊戲進度。\n\n感謝您的理解與配合！',
+    color: '#F59E0B',
+    footer: 'LLS懶懶生存管理組'
+  },
+  update: {
+    title: '版本更新公告',
+    desc: '**LLS懶懶生存** 已完成版本更新！\n\n**更新內容：**\n- 新增功能 A\n- 修復問題 B\n- 效能優化\n\n請重新啟動客戶端以確保連線正常。',
+    color: '#22C55E',
+    footer: 'LLS懶懶生存管理組'
+  },
+  event: {
+    title: '活動公告',
+    desc: '嗨大家！\n\n**LLS懶懶生存** 即將舉辦特別活動！\n\n活動詳情敬請期待，請持續關注公告頻道。',
+    color: '#6366F1',
+    footer: 'LLS懶懶生存活動組'
+  },
+  rule: {
+    title: '社群規範提醒',
+    desc: '**提醒大家遵守伺服器規則：**\n\n1. 尊重其他玩家\n2. 禁止任何形式的作弊\n3. 請勿破壞他人建築\n4. 遵循管理員指示\n\n違反規則將依情況處以警告、禁言或封鎖。',
+    color: '#EF4444',
+    footer: 'LLS懶懶生存管理組'
+  },
+  welcome: {
+    title: '歡迎來到 LLS懶懶生存！',
+    desc: '歡迎你加入我們的社群！\n\n請先閱讀伺服器規則，然後前往申請頻道加入白名單即可開始遊戲。\n\n如有任何問題，歡迎詢問管理員。',
+    color: '#00B4D8',
+    footer: 'LLS懶懶生存管理組'
+  }
+};
+function loadTemplate() {
+  const key = document.getElementById('ann-template').value;
+  const t = TEMPLATES[key] || TEMPLATES.custom;
+  document.getElementById('ann-title').value = t.title;
+  document.getElementById('ann-desc').value = t.desc;
+  document.getElementById('ann-color').value = t.color;
+  document.getElementById('ann-footer').value = t.footer;
+  APP.annFields = [];
+  document.getElementById('ann-fields-list').innerHTML = '';
+  updatePreview();
+}
+function updatePreview() {
+  const title = document.getElementById('ann-title').value || '（無標題）';
+  const desc = document.getElementById('ann-desc').value || '（無內文）';
+  const footer = document.getElementById('ann-footer').value;
+  const color = document.getElementById('ann-color').value || '#5865F2';
+  const mention = document.getElementById('ann-mention').value;
+  document.getElementById('ep-title').textContent = title;
+  document.getElementById('ep-desc').textContent = desc;
+  document.getElementById('embed-preview').style.borderLeftColor = color;
+  const swatchEl = document.getElementById('ann-color-swatch');
+  if (swatchEl) swatchEl.style.background = color;
+  const footEl = document.getElementById('ep-footer');
+  if (footer) { footEl.textContent = footer; footEl.style.display = ''; }
+  else footEl.style.display = 'none';
+  const menEl = document.getElementById('ep-mention');
+  if (mention) { menEl.textContent = '@' + mention; menEl.style.display = ''; }
+  else menEl.style.display = 'none';
+  const fp = document.getElementById('ep-fields');
+  fp.innerHTML = APP.annFields.map(f =>
+    `<div class="embed-field"><div class="embed-field-name">${f.name}</div><div class="embed-field-val">${f.value}</div></div>`
+  ).join('');
+}
+function addField() {
+  const name = document.getElementById('af-name').value.trim();
+  const value = document.getElementById('af-value').value.trim();
+  if (!name || !value) { toast('請填入欄位名稱與內容'); return; }
+  APP.annFields.push({ name, value, inline: document.getElementById('af-inline').checked });
+  document.getElementById('af-name').value = '';
+  document.getElementById('af-value').value = '';
+  renderFieldsList();
+  updatePreview();
+}
+function renderFieldsList() {
+  document.getElementById('ann-fields-list').innerHTML = APP.annFields.map((f, i) =>
+    `<div style="display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:6px;padding:6px 10px;margin-bottom:6px">
+      <span style="font-size:12px;flex:1"><strong>${f.name}</strong>：${f.value}</span>
+      <button class="btn btn-sm btn-ghost" onclick="removeField(${i})">移除</button>
+    </div>`
+  ).join('');
+}
+function removeField(i) {
+  APP.annFields.splice(i, 1);
+  renderFieldsList();
+  updatePreview();
+}
+function sendAnnouncement() {
+  const channel = document.getElementById('ann-channel').value;
+  const title = document.getElementById('ann-title').value.trim();
+  const desc = document.getElementById('ann-desc').value.trim();
+  const schedule = document.getElementById('ann-schedule').value;
+  if (!channel) { toast('請選擇目標頻道'); return; }
+  if (!title && !desc) { toast('請填入公告標題或內容'); return; }
+  const time = new Date().toLocaleString('zh-TW');
+  const histItem = { channel, title, time, scheduled: !!schedule };
+  APP.annHistory.unshift(histItem);
+  renderAnnHistory();
+  if (schedule) {
+    toast('公告已排程：' + new Date(schedule).toLocaleString('zh-TW'));
+  } else {
+    toast('公告已發送到頻道 ' + channel);
+  }
+  writeAuditLog('DISCORD_MESSAGE_SEND', 'CHANNEL', channel, '成功', { title });
+}
+function renderAnnHistory() {
+  const el = document.getElementById('ann-history');
+  if (!APP.annHistory.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無公告紀錄</div>'; return; }
+  el.innerHTML = APP.annHistory.slice(0, 5).map(h =>
+    `<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:500">${h.title || '（無標題）'}</div>
+      <div style="font-size:11px;color:var(--t3)">頻道：${h.channel} · ${h.time}${h.scheduled?' · 已排程':''}</div>
+    </div>`
+  ).join('');
+}
+function loadAnnChannels() {
+  const sel = document.getElementById('ann-channel');
+  const rawChannels = document.getElementById('pub-channels')?.value || '';
+  sel.innerHTML = '<option value="">— 選擇頻道 —</option>';
+  const lines = rawChannels.split('\n').filter(l => l.trim());
+  lines.forEach(line => {
+    const [id, name] = line.split(':');
+    if (id && name) {
+      const opt = document.createElement('option');
+      opt.value = id.trim();
+      opt.textContent = '#' + name.trim();
+      sel.appendChild(opt);
+    }
+  });
+  if (!lines.length) {
+    sel.innerHTML = '<option value="">— 請先在敏感設定填入頻道清單 —</option>';
+  }
+}
+
+// ─── Sensitive Settings ───────────────────────────────────────
+function saveSensitive(type) {
+  if (type === 'mgmt') {
+    APP.settings.mgmt = {
+      guildId: document.getElementById('mgmt-guild-id').value,
+      auditCh: document.getElementById('mgmt-audit-ch').value,
+      alertCh: document.getElementById('mgmt-alert-ch').value,
+      playerCh: document.getElementById('mgmt-player-ch').value
+    };
+    toast('管理伺服器設定已儲存');
+    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '管理伺服器', '成功');
+  } else if (type === 'pub') {
+    APP.settings.pub = {
+      guildId: document.getElementById('pub-guild-id').value,
+      announceCh: document.getElementById('pub-announce-ch').value,
+      channels: document.getElementById('pub-channels').value
+    };
+    toast('玩家伺服器設定已儲存');
+    loadAnnChannels();
+    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '玩家伺服器', '成功');
+  } else if (type === 'bot') {
+    const token = document.getElementById('bot-token').value.trim();
+    if (!token) { toast('請填入 Bot Token'); return; }
+    toast('Bot Token 已更新，Bot 正在重新連線...');
+    document.getElementById('bot-token').value = '';
+    writeAuditLog('SECURITY_SENSITIVE_UPDATE', 'SETTING', 'Bot Token', '成功');
+    setTimeout(checkBotStatus, 1000);
+  }
+}
+function testChannel(label) {
+  toast('測試訊息已發送到「' + label + '」，請確認是否收到');
+}
+function checkBotStatus() {
+  const dot = document.getElementById('bot-dot');
+  const text = document.getElementById('bot-status-text');
+  if (APP.settings.bot.connected) {
+    dot.className = 'dot dot-ok';
+    text.textContent = 'Bot 已連線';
+    text.style.color = 'var(--ok)';
+  } else {
+    dot.className = 'dot dot-off';
+    text.textContent = 'Bot 尚未連線，請設定 Bot Token';
+    text.style.color = 'var(--t2)';
+  }
+}
+
+// ─── Admin Users ──────────────────────────────────────────────
+const ROLE_LABELS = {
+  'owner': '最高擁有者',
+  'super-admin': '超級管理員',
+  'discord-admin': 'Discord 管理員',
+  'mc-admin': 'Minecraft 管理員',
+  'auditor': '審計員',
+  'viewer': '觀察員'
+};
+const ROLE_BADGE = {
+  'owner': 'bdanger',
+  'super-admin': 'bwarn',
+  'discord-admin': 'bacc',
+  'mc-admin': 'binfo',
+  'auditor': 'bmute',
+  'viewer': 'bmute'
+};
+const ADMINS = [
+  { email:'owner@lls.dev', name:'LLS 擁有者', role:'owner', created:'2024-01-01', lastLogin:'剛才', status:'active' }
+];
+function renderUsers() {
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = ADMINS.map(a =>
+    `<tr>
+      <td><div style="font-weight:500">${a.name}</div><div style="font-size:11px;color:var(--t3)">${a.email}</div></td>
+      <td><span class="badge ${ROLE_BADGE[a.role]}">${ROLE_LABELS[a.role]||a.role}</span></td>
+      <td style="color:var(--t3)">${a.created}</td>
+      <td style="color:var(--t3)">${a.lastLogin}</td>
+      <td><span class="badge ${a.status==='active'?'bok':'bwarn'}">${a.status==='active'?'正常':'停用'}</span></td>
+      <td>${a.role==='owner'?'<span style="font-size:12px;color:var(--t3)">不可修改</span>':'<div style="display:flex;gap:4px"><button class="btn btn-sm">詳情</button><button class="btn btn-sm btn-d" onclick="toast(\'帳號已停用\')">停用</button></div>'}</td>
+    </tr>`
+  ).join('');
+}
+function execAddAdmin() {
+  const email = document.getElementById('aa-email').value.trim();
+  const role = document.getElementById('aa-role').value;
+  const note = document.getElementById('aa-note').value;
+  if (!email) { toast('請填入 Email'); return; }
+  ADMINS.push({ email, name: email.split('@')[0], role, created: new Date().toISOString().split('T')[0], lastLogin: '—', status: 'active', note });
+  closeM('add-admin');
+  renderUsers();
+  toast('已新增管理員 ' + email);
+  writeAuditLog('SYSTEM_ADMIN_CREATE', 'USER', email, '成功', { role });
+}
+
+// ─── Audit Logs ───────────────────────────────────────────────
+function writeAuditLog(action, targetType, targetName, result, params = {}) {
+  const log = {
+    timestamp: new Date(),
+    actor: APP.currentUser?.displayName || '—',
+    actorRole: '最高擁有者',
+    action,
+    targetType,
+    targetName: targetName || '—',
+    result,
+    params
+  };
+  APP.audit.logs.unshift(log);
+  document.getElementById('s-ops').textContent = APP.audit.logs.length;
+  if (document.getElementById('page-audit').classList.contains('active')) {
+    renderAuditTable();
+  }
+}
+function loadAuditLogs() { renderAuditTable(); }
+function renderAuditTable() {
+  const tbody = document.getElementById('audit-tbody');
+  if (!APP.audit.logs.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無操作紀錄</td></tr>';
+    document.getElementById('audit-count').textContent = '0 筆紀錄';
+    return;
+  }
+  const start = APP.audit.page * APP.audit.perPage;
+  const page = APP.audit.logs.slice(start, start + APP.audit.perPage);
+  tbody.innerHTML = page.map(l => {
+    const t = l.timestamp;
+    const timeStr = t.toLocaleTimeString('zh-TW', { hour12: false });
+    const rClass = l.result === '成功' ? 'bok' : 'bdanger';
+    return `<tr>
+      <td style="font-family:monospace;font-size:11px;color:var(--t3)">${timeStr}</td>
+      <td><div style="font-size:12px;font-weight:500">${l.actor}</div><div style="font-size:10px;color:var(--t3)">${l.actorRole}</div></td>
+      <td style="font-size:12px">${l.action}</td>
+      <td><span class="badge bmute" style="font-size:10px">${l.targetType}</span> ${l.targetName}</td>
+      <td><span class="badge ${rClass}">${l.result}</span></td>
+      <td><button class="btn btn-sm btn-ghost" onclick="toast('Log ID: ${Math.random().toString(36).slice(2,10)}')">詳情</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('audit-count').textContent = `顯示 ${start+1}–${Math.min(start+APP.audit.perPage, APP.audit.logs.length)} / 共 ${APP.audit.logs.length} 筆`;
+}
+function auditPage(dir) {
+  const maxPage = Math.floor(APP.audit.logs.length / APP.audit.perPage);
+  APP.audit.page = Math.max(0, Math.min(maxPage, APP.audit.page + dir));
+  renderAuditTable();
+}
+function exportAudit() {
+  const headers = ['時間','執行者','身分組','操作','目標類型','目標名稱','結果'];
+  const rows = APP.audit.logs.map(l => [
+    l.timestamp.toLocaleString('zh-TW'), l.actor, l.actorRole,
+    l.action, l.targetType, l.targetName, l.result
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'panelbridge-audit-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('審計日誌已匯出');
+}
+
+// ─── Confirm Dialog ───────────────────────────────────────────
+const CONFIRMS = {
+  stop: { title:'確認停止伺服器', sub:'此操作將強制斷開所有在線玩家連線', alert:'請先通知玩家或開啟維護模式', label:'輸入伺服器名稱以確認', ph:'LLS懶懶生存 - Survival', cb:()=>{ mcPower('stop'); } },
+  restart: { title:'確認重啟伺服器', sub:'重啟期間玩家將暫時斷線（約 30–60 秒）', alert:'建議先廣播通知玩家', label:'輸入「CONFIRM RESTART」以確認', ph:'CONFIRM RESTART', cb:()=>{ mcPower('restart'); } },
+  unbind: { title:'撤銷 Pterodactyl 綁定', sub:'撤銷後將無法控制任何 Minecraft 伺服器', alert:'此操作不可逆，需重新綁定才能恢復', label:'輸入「CONFIRM UNBIND」以確認', ph:'CONFIRM UNBIND', cb:()=>{ APP.ptero.bound=false; APP.ptero.servers=[]; toast('Pterodactyl 綁定已撤銷'); writeAuditLog('SYSTEM_BINDING_REVOKE','BINDING','—','成功'); syncPteroServersToSelects(); renderPteroServers(); } },
+  restore: { title:'確認還原備份', sub:'還原後伺服器資料將回到備份時間點', alert:'此操作不可逆！當前資料將被備份覆蓋', label:'輸入「CONFIRM RESTORE」以確認', ph:'CONFIRM RESTORE', cb:()=>{ toast('備份還原任務已建立'); writeAuditLog('MC_BACKUP_RESTORE','SERVER','—','成功'); } },
+  'emergency-lock': { title:'開啟緊急鎖定', sub:'所有非擁有者帳號的 API 請求將立即被拒絕', alert:'此操作將立即影響所有在線管理員', label:'輸入「CONFIRM LOCK」以確認', ph:'CONFIRM LOCK', cb:()=>{ toast('緊急鎖定已開啟，Discord 通知已發送'); writeAuditLog('SECURITY_EMERGENCY_LOCK','SETTING','系統','成功'); } }
+};
+function confirmAction(type) {
+  const c = CONFIRMS[type]; if (!c) return;
+  document.getElementById('cf-title').textContent = c.title;
+  document.getElementById('cf-sub').textContent = c.sub;
+  document.getElementById('cf-alert').textContent = c.alert;
+  document.getElementById('cf-label').textContent = c.label;
+  document.getElementById('cf-input').placeholder = c.ph;
+  document.getElementById('cf-input').value = '';
+  document.getElementById('cf-btn').onclick = () => { closeM('confirm'); c.cb(); };
+  openM('confirm');
+}
+
+// ─── Profile ──────────────────────────────────────────────────
+function saveProfile() {
+  const name = document.getElementById('prof-display').value.trim();
+  if (!name) { toast('請填入顯示名稱'); return; }
+  if (APP.currentUser) APP.currentUser.displayName = name;
+  document.querySelector('.uname').textContent = name;
+  toast('個人資料已儲存');
+}
+
+// ─── Modal helpers ────────────────────────────────────────────
+function openM(id) { const el = document.getElementById('m-' + id); if (el) el.classList.add('open'); }
+function closeM(id) { const el = document.getElementById('m-' + id); if (el) el.classList.remove('open'); }
+document.querySelectorAll('.mov').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) { const id = o.id.replace('m-', ''); closeM(id); } });
+});
+
+// ─── Toast ────────────────────────────────────────────────────
+let _tt;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(_tt); _tt = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ─── Alerts ───────────────────────────────────────────────────
+function clearAllAlerts() {
+  document.getElementById('alert-list').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">所有警示已確認</div>';
+  document.querySelector('.nbadge') && (document.querySelector('.nbadge').textContent = '0');
+  toast('所有警示已確認');
+}
+
+// ─── Role select ──────────────────────────────────────────────
+function selectRole(r) {
+  const labels = {
+    'owner': '最高擁有者（不可修改）',
+    'super-admin': '超級管理員 許可操作',
+    'discord-admin': 'Discord 管理員 許可操作',
+    'mc-admin': 'Minecraft 管理員 許可操作',
+    'auditor': '審計員 許可操作',
+    'viewer': '觀察員 許可操作'
+  };
+  document.getElementById('role-perm-title').textContent = labels[r] || r;
+  document.querySelectorAll('#role-list .card').forEach(c => { c.style.borderColor = ''; });
+  event.currentTarget.style.borderColor = 'var(--acc)';
+}
+
+// ─── MC Whitelist full render ─────────────────────────────────
+const WL_DATA = [];
+function renderWhitelistTable() {
+  const el = document.getElementById('mc-whitelist-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
+  if (!WL_DATA.length) {
+    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">白名單為空。實作後將透過 Pterodactyl API 取得實際資料。</div>';
+    return;
+  }
+  const search = (document.getElementById('wl-search')?.value || '').toLowerCase();
+  const rows = WL_DATA.filter(p => !search || p.name.toLowerCase().includes(search));
+  el.innerHTML = `<table class="tbl">
+    <thead><tr><th>玩家名稱</th><th>新增時間</th><th>新增者</th><th>操作</th></tr></thead>
+    <tbody>${rows.map(p => `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td style="color:var(--t3)">${p.added}</td>
+      <td style="color:var(--t3)">${p.by}</td>
+      <td><button class="btn btn-sm btn-d" onclick="removeWhitelistEntry('${p.name}')">移除</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function removeWhitelistEntry(name) {
+  const i = WL_DATA.findIndex(p => p.name === name);
+  if (i > -1) WL_DATA.splice(i, 1);
+  renderWhitelistTable();
+  toast('已從白名單移除 ' + name);
+  writeAuditLog('MC_WHITELIST_REMOVE', 'PLAYER', name, '成功');
+}
+
+// ─── MC Bans full render ──────────────────────────────────────
+const MCBAN_DATA = [];
+function renderMcBansTable() {
+  const el = document.getElementById('mc-bans-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
+  if (!MCBAN_DATA.length) {
+    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">封鎖名單為空。實作後將透過 Pterodactyl API 取得實際資料。</div>';
+    return;
+  }
+  el.innerHTML = `<table class="tbl">
+    <thead><tr><th>玩家名稱</th><th>原因</th><th>到期時間</th><th>封鎖者</th><th>操作</th></tr></thead>
+    <tbody>${MCBAN_DATA.map(b => `<tr>
+      <td><strong>${b.name}</strong></td>
+      <td style="color:var(--t3)">${b.reason}</td>
+      <td style="color:${b.expires?'var(--warn)':'var(--t3)'}">${b.expires||'永久'}</td>
+      <td style="color:var(--t3)">${b.by}</td>
+      <td><button class="btn btn-sm btn-ok" onclick="removeMcBan('${b.name}')">解除</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function removeMcBan(name) {
+  const i = MCBAN_DATA.findIndex(b => b.name === name);
+  if (i > -1) MCBAN_DATA.splice(i, 1);
+  renderMcBansTable();
+  toast('已解除封鎖玩家 ' + name);
+  writeAuditLog('MC_PLAYER_UNBAN', 'PLAYER', name, '成功');
+}
+
+// ─── Backup full render ───────────────────────────────────────
+const BACKUP_DATA = [];
+function renderBackupTable() {
+  const el = document.getElementById('mc-backup-list');
+  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
+  if (!BACKUP_DATA.length) {
+    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">尚無備份。實作後將透過 Pterodactyl API 取得備份列表。</div>';
+    return;
+  }
+  el.innerHTML = `<table class="tbl">
+    <thead><tr><th>備份名稱</th><th>建立時間</th><th>大小</th><th>狀態</th><th>操作</th></tr></thead>
+    <tbody>${BACKUP_DATA.map(b => `<tr>
+      <td><strong>${b.name}</strong></td>
+      <td style="color:var(--t3)">${b.time}</td>
+      <td>${b.size}</td>
+      <td><span class="badge ${b.ok?'bok':'bdanger'}">${b.ok?'完成':'失敗'}</span></td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm btn-d" onclick="confirmAction('restore')">還原</button>
+        <button class="btn btn-sm" onclick="deleteBackup('${b.name}')">刪除</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function deleteBackup(name) {
+  const i = BACKUP_DATA.findIndex(b => b.name === name);
+  if (i > -1) BACKUP_DATA.splice(i, 1);
+  renderBackupTable();
+  toast('備份已刪除：' + name);
+}
+
+// ─── Override switchMcServer with full render ─────────────────
+function switchMcServer() {
+  const id = document.getElementById('mc-srv-sel').value;
+  if (!id) return;
+  const srv = APP.ptero.servers.find(s => s.id === id);
+  if (!srv) return;
+  APP.mc.selectedServer = srv;
+  updateMcStatusUI(srv);
+  loadMcPlayers();
+  renderWhitelistTable();
+  renderMcBansTable();
+  renderBackupTable();
+}
+
+// ─── Override loadMcBans ──────────────────────────────────────
+function loadMcBans() { renderMcBansTable(); }
+function loadWhitelist() { renderWhitelistTable(); }
+
+// ─── Override execMcBan to push to list ──────────────────────
+function execMcBan() {
+  const name = document.getElementById('mcb-name').value.trim();
+  const reason = document.getElementById('mcb-reason').value.trim();
+  if (!name || !reason) { toast('請填入玩家名稱與原因'); return; }
+  MCBAN_DATA.push({ name, reason, expires: document.getElementById('mcb-expires').value || null, by: APP.currentUser?.displayName || '—' });
+  renderMcBansTable();
+  closeM('mc-ban-player');
+  toast('已封鎖玩家 ' + name);
+  writeAuditLog('MC_PLAYER_BAN', 'PLAYER', name, '成功', { reason });
+}
+
+// ─── Override execAddWhitelist to push to list ────────────────
+function execAddWhitelist() {
+  const name = document.getElementById('wl-player-name').value.trim();
+  if (!name) { toast('請填入玩家名稱'); return; }
+  WL_DATA.push({ name, added: new Date().toLocaleDateString('zh-TW'), by: APP.currentUser?.displayName || '—' });
+  renderWhitelistTable();
+  closeM('add-whitelist');
+  toast('已新增 ' + name + ' 至白名單');
+  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
+}
+
+// ─── Override wlAddPlayer ─────────────────────────────────────
+function wlAddPlayer() {
+  const name = document.getElementById('wl-add-name').value.trim();
+  if (!name) { toast('請輸入玩家名稱'); return; }
+  WL_DATA.push({ name, added: new Date().toLocaleDateString('zh-TW'), by: APP.currentUser?.displayName || '—' });
+  renderWhitelistTable();
+  renderWlCfgList();
+  document.getElementById('wl-add-name').value = '';
+  toast('已新增 ' + name + ' 至白名單');
+  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
+}
+function renderWlCfgList() {
+  const el = document.getElementById('wl-cfg-list');
+  if (!WL_DATA.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px 0">白名單為空</div>'; return; }
+  el.innerHTML = `<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增者</th><th>操作</th></tr></thead><tbody>
+    ${WL_DATA.slice(0,10).map(p=>`<tr><td><strong>${p.name}</strong></td><td style="color:var(--t3)">${p.by}</td><td><button class="btn btn-sm btn-d" onclick="removeWhitelistEntry('${p.name}');renderWlCfgList()">移除</button></td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+// ─── Override mcCreateBackup to add to list ───────────────────
+function mcCreateBackup() {
+  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
+  const name = 'manual-' + new Date().toISOString().slice(0,16).replace('T','-').replace(':','');
+  BACKUP_DATA.unshift({ name, time: new Date().toLocaleString('zh-TW'), size: '計算中...', ok: true });
+  renderBackupTable();
+  toast('備份任務已建立：' + name);
+  writeAuditLog('MC_BACKUP_CREATE', 'SERVER', APP.mc.selectedServer.name, '成功');
+}
+
+// ─── Status page full render ──────────────────────────────────
+function renderStatusPage() {
+  // Bot status
+  const botDot = document.getElementById('st-bot-dot');
+  const botLbl = document.getElementById('st-bot-lbl');
+  if (APP.settings.bot.connected) {
+    botDot.className = 'dot dot-ok';
+    botLbl.textContent = '已連線';
+    botLbl.style.color = 'var(--ok)';
+  } else {
+    botDot.className = 'dot dot-off';
+    botLbl.textContent = '尚未連線';
+    botLbl.style.color = 'var(--t2)';
+  }
+  // Firebase
+  const fbEl = document.getElementById('st-firebase');
+  fbEl.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t2)">Authentication</span><div style="display:flex;align-items:center;gap:6px"><span class="dot dot-ok"></span><span style="color:var(--ok)">正常</span></div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t2)">Firestore</span><div style="display:flex;align-items:center;gap:6px"><span class="dot dot-ok"></span><span style="color:var(--ok)">正常</span></div></div>
+      <div style="font-size:12px;color:var(--t2)">今日讀取額度：需要 Firebase 控制台查詢</div>
+      <div style="font-size:12px;color:var(--t2)">今日寫入額度：需要 Firebase 控制台查詢</div>
+      <div class="al al-info" style="font-size:11px;margin-bottom:0">Firebase Spark 免費方案：每日 50K 讀 / 20K 寫 / 1GB 儲存</div>
+    </div>`;
+  // Ptero bindings
+  const tbody = document.querySelector('#st-ptero-tbl tbody');
+  if (!APP.ptero.bound) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--t3);padding:16px;text-align:center">尚未綁定 Pterodactyl Panel</td></tr>';
+  } else {
+    tbody.innerHTML = `<tr>
+      <td>${APP.currentUser?.displayName || '擁有者'}</td>
+      <td style="font-size:12px;color:var(--t3)">${APP.ptero.url}</td>
+      <td style="color:var(--ok)">${new Date().toLocaleTimeString('zh-TW',{hour12:false})}</td>
+      <td>${APP.ptero.servers.length}</td>
+      <td><span class="badge bok">正常</span></td>
+    </tr>`;
+  }
+}
+
+// ─── DC Roles render ──────────────────────────────────────────
+function renderDcRoles() {
+  const el = document.getElementById('dc-roles-list');
+  el.innerHTML = `<div class="al al-info" style="margin-bottom:12px;font-size:12px">角色資料需 Discord Bot 連線後取得。角色指派可在「成員管理」操作；建立或修改角色需在 Discord 管理介面操作。</div>
+  <div style="color:var(--t3);font-size:12px;padding:10px 0">完成 Bot 設定後，此處將顯示伺服器所有角色及其成員數量。</div>`;
+}
+
+// ─── DC Bans render ───────────────────────────────────────────
+function renderDcBans() {
+  const el = document.getElementById('dc-bans-list');
+  el.innerHTML = `<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">Discord 封鎖名單需 Bot 連線後取得。<br>實作後將可在此搜尋、查看與解除封鎖。</div>`;
+}
+
+// ─── Dashboard real render ────────────────────────────────────
+function loadDashboardFull() {
+  // Servers
+  const srvEl = document.getElementById('dash-servers');
+  if (!APP.ptero.bound || !APP.ptero.servers.length) {
+    srvEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態。<br><button class="btn btn-sm" style="margin-top:8px" onclick="pg(\'pterodactyl\',\'Pterodactyl 綁定\')">前往綁定</button></div>';
+  } else {
+    srvEl.innerHTML = APP.ptero.servers.map(s => `
+      <div class="sr">
+        <span class="dot ${s.status==='running'?'dot-ok':'dot-off'}"></span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500">${s.name}</div>
+          <div style="font-size:11px;color:var(--t3)">${s.status==='running'?s.players+'/'+s.maxPlayers+' 玩家':'離線'}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          ${s.status==='running'
+            ? `<button class="btn btn-sm btn-d" onclick="confirmAction('stop')">停止</button><button class="btn btn-sm" onclick="confirmAction('restart')">重啟</button>`
+            : `<button class="btn btn-sm btn-p" onclick="mcPower('start')">啟動</button>`}
+        </div>
+      </div>`).join('');
+  }
+  // Discord
+  const dcEl = document.getElementById('dash-discord');
+  if (!APP.settings.bot.connected) {
+    dcEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot Token 設定後顯示 Discord 摘要。<br><button class="btn btn-sm" style="margin-top:8px" onclick="pg(\'sensitive\',\'敏感設定\')">前往設定</button></div>';
+  } else {
+    dcEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">成員總數</div><div style="font-size:18px;font-weight:600">—</div></div>
+      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日加入</div><div style="font-size:18px;font-weight:600;color:var(--ok)">—</div></div>
+      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日禁言</div><div style="font-size:18px;font-weight:600">—</div></div>
+      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日封鎖</div><div style="font-size:18px;font-weight:600;color:var(--danger)">—</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2)"><span class="dot dot-ok"></span>Bot 已連線</div>`;
+  }
+  // Logs
+  const logEl = document.getElementById('dash-logs');
+  if (!APP.audit.logs.length) {
+    logEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄</div>';
+  } else {
+    const icons = { 'BAN':'li-d','KICK':'li-d','TIM':'li-w','RST':'li-ok','WHT':'li-ok','ERR':'li-d','ADD':'li-ok' };
+    logEl.innerHTML = APP.audit.logs.slice(0,5).map(l => {
+      const code = l.action.replace('DISCORD_MEMBER_','').replace('MC_SERVER_','').replace('MC_PLAYER_','').replace('MC_WHITELIST_','WHT').replace('SYSTEM_BINDING_','ADD').slice(0,3);
+      const cls = icons[code] || 'li-ok';
+      const t = l.timestamp.toLocaleTimeString('zh-TW',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      return `<div class="lr"><div class="lt">${t}</div><div class="li ${cls}">${code}</div><div class="lb"><div class="la">${l.action} - ${l.targetName}</div><div class="lm">${l.actor} · ${l.result}</div></div></div>`;
+    }).join('');
+  }
+  document.getElementById('s-ops').textContent = APP.audit.logs.length;
+}
+
+// ─── Page change hooks ────────────────────────────────────────
+const _origPg = pg;
+function pg(id, title) {
+  _origPg(id, title);
+  if (id === 'status') renderStatusPage();
+  if (id === 'dashboard') loadDashboardFull();
+  if (id === 'audit') renderAuditTable();
+  if (id === 'users') renderUsers();
+  if (id === 'pterodactyl') {
+    if (APP.ptero.bound) {
+      document.getElementById('ptero-not-bound').style.display='none';
+      document.getElementById('ptero-bound-status').style.display='block';
+      document.getElementById('ptero-current-card').style.display='block';
+      renderPteroServers();
+    }
+  }
+  if (id === 'discord') { loadDCMembers(); renderDcRoles(); renderDcBans(); }
+  if (id === 'announce') { loadAnnChannels(); }
+}
+
+// ─── Override stab for mc tabs ───────────────────────────────
+const _origStab = stab;
+function stab(el, tid) {
+  _origStab(el, tid);
+  if (tid === 'mc-tab-whitelist') renderWhitelistTable();
+  if (tid === 'mc-tab-bans') renderMcBansTable();
+  if (tid === 'mc-tab-backups') renderBackupTable();
+  if (tid === 'mc-tab-logs') loadMcLogs();
+  if (tid === 'dt-roles') renderDcRoles();
+  if (tid === 'dt-bans') renderDcBans();
+  if (tid === 'mcs-whitelist-cfg') renderWlCfgList();
+}
+
+// ─── Init on page load ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderUsers();
+  loadAuditLogs();
+  const today = new Date().toISOString().split('T')[0];
+  const week = new Date(Date.now() - 7*86400000).toISOString().split('T')[0];
+  document.getElementById('audit-from').value = week;
+  document.getElementById('audit-to').value = today;
+  loadTemplate();
+  loadAnnChannels();
+  loadDashboardFull();
+  checkBotStatus();
+});
+
+// ─── postMessage bridge (React parent → iframe) ──────────────
+window.addEventListener('message', function(event) {
+  if (!event.data || !event.data.type) return;
+  if (event.data.type === 'INIT_USER') {
+    doLogin(event.data.user);
+  }
+  if (event.data.type === 'LOGOUT') {
+    doLogout();
+  }
+});
+
+// Signal to parent that iframe is ready
+window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+
+// Auto-init with placeholder if no parent message (direct access)
+setTimeout(function() {
+  if (!APP.currentUser) {
+    doLogin({ email: 'guest@lls.dev', displayName: '管理員', role: 'owner' });
+  }
+}, 500);
+
+</script>
+</body>
+</html>
