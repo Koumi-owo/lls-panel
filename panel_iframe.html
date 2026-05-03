@@ -1132,21 +1132,19 @@ const APP = {
 function doLogin(userData) {
   if (userData) {
     APP.currentUser = userData;
-  } else {
-    const email = document.getElementById('l-email').value.trim();
-    const pw = document.getElementById('l-pw').value;
-    if (!email || !pw) return;
-    APP.currentUser = { email, displayName: email.split('@')[0], role: 'owner' };
   }
-  const uname = document.getElementById('sb-uname');
-  if (uname) uname.textContent = APP.currentUser.displayName || APP.currentUser.email;
-  const urole = document.getElementById('sb-urole');
-  if (urole) urole.textContent = '最高擁有者';
+  // Update sidebar
+  var initial = ((APP.currentUser && (APP.currentUser.displayName || APP.currentUser.email)) || '管').charAt(0).toUpperCase();
+  var avEl = document.querySelector('.av');
+  if (avEl) avEl.textContent = initial;
+  var unameEl = document.getElementById('sb-uname');
+  if (unameEl) unameEl.textContent = (APP.currentUser && (APP.currentUser.displayName || APP.currentUser.email)) || '管理員';
+  var uroleEl = document.getElementById('sb-urole');
+  if (uroleEl) uroleEl.textContent = '最高擁有者';
   initApp();
 }
 function doLogout() {
   APP.currentUser = null;
-  // Notify parent React app to sign out
   window.parent.postMessage({ type: 'LOGOUT' }, '*');
 }
 
@@ -1160,19 +1158,14 @@ function pg(id, title) {
     const oc = n.getAttribute('onclick') || '';
     n.classList.toggle('on', oc.includes("'" + id + "'"));
   });
-  // Side effects per page
-  if (id === 'dashboard') loadDashboardFull();
-  if (id === 'status') renderStatusPage();
-  if (id === 'audit') renderAuditTable();
-  if (id === 'users') renderUsers();
-  if (id === 'announce') loadAnnChannels();
-  if (id === 'discord') { loadDCMembers(); renderDcRoles(); renderDcBans(); }
-  if (id === 'pterodactyl' && APP.ptero.bound) {
-    document.getElementById('ptero-not-bound').style.display = 'none';
-    document.getElementById('ptero-bound-status').style.display = 'block';
-    document.getElementById('ptero-current-card').style.display = 'block';
-    renderPteroServers();
-  }
+  // Page-specific side effects
+  if (id === 'dashboard')    loadDashboardFull();
+  if (id === 'status')       renderStatusPage();
+  if (id === 'audit')        renderAuditTable();
+  if (id === 'users')        renderUsers();
+  if (id === 'announce')     loadAnnChannels();
+  if (id === 'sensitive')    loadSensitiveSettings();
+  if (id === 'pterodactyl' && APP.ptero.bound) showPteroBound();
 }
 function stab(el, tid) {
   const parent = el.closest('.tabs');
@@ -1185,96 +1178,26 @@ function stab(el, tid) {
   const tab = document.getElementById(tid);
   if (tab) tab.style.display = '';
   // Tab-specific renders
-  if (tid === 'mc-tab-whitelist') renderWhitelistTable();
-  if (tid === 'mc-tab-bans') renderMcBansTable();
-  if (tid === 'mc-tab-backups') renderBackupTable();
-  if (tid === 'mc-tab-logs') loadMcLogs();
-  if (tid === 'dt-roles') renderDcRoles();
-  if (tid === 'dt-bans') renderDcBans();
+  if (tid === 'mc-tab-whitelist')  renderWhitelistTable();
+  if (tid === 'mc-tab-bans')       renderMcBansTable();
+  if (tid === 'mc-tab-backups')    renderBackupTable();
+  if (tid === 'mc-tab-logs')       loadMcLogs();
+  if (tid === 'dt-roles')          renderDcRoles();
+  if (tid === 'dt-bans')           renderDcBans();
   if (tid === 'mcs-whitelist-cfg') renderWlCfgList();
+  if (tid === 'mcs-maintenance')   loadMaintenanceState();
 }
 
 // ─── Init ─────────────────────────────────────────────────────
-function initApp() {
-  loadDashboardFull();
-  loadAuditLogs();
-  syncPteroServersToSelects();
-  renderUsers();
-  renderAuditTable();
-  loadAnnChannels();
-  loadTemplate();
-  const today = new Date().toISOString().split('T')[0];
-  const week = new Date(Date.now() - 7*86400000).toISOString().split('T')[0];
-  const af = document.getElementById('audit-from'); if (af) af.value = week;
-  const at = document.getElementById('audit-to'); if (at) at.value = today;
-}
 
 // ─── Dashboard ────────────────────────────────────────────────
-function loadDashboard() {
-  document.getElementById('s-ops').textContent = '0';
-  document.getElementById('s-dc-members').textContent = '—';
-  document.getElementById('s-dc-sub').textContent = '待 Bot 連線';
-  document.getElementById('s-mc-players').textContent = '—';
-  document.getElementById('s-mc-sub').textContent = '待 Pterodactyl 綁定';
-  document.getElementById('dash-servers').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態</div>';
-  document.getElementById('dash-discord').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot 設定後顯示 Discord 摘要</div>';
-  document.getElementById('dash-logs').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄</div>';
-}
 
 // ─── Pterodactyl ──────────────────────────────────────────────
-function pteroBind() {
-  const url = document.getElementById('ptero-url').value.trim();
-  const key = document.getElementById('ptero-key').value.trim();
-  const errEl = document.getElementById('ptero-bind-err');
-  errEl.style.display = 'none';
-  if (!url || !key) { showPteroErr('請填入 Panel 網址與 API Key'); return; }
-  if (!url.startsWith('https://')) { showPteroErr('Panel 網址必須以 https:// 開頭'); return; }
-  if (!key.startsWith('ptlc_')) { showPteroErr('API Key 格式不正確（應以 ptlc_ 開頭）'); return; }
-  document.getElementById('ptero-bind-btn').textContent = '驗證中...';
-  document.getElementById('ptero-bind-btn').disabled = true;
-  // Simulate API call — real implementation calls Workers /api/minecraft/bind
-  setTimeout(() => {
-    document.getElementById('ptero-bind-btn').textContent = '驗證並綁定';
-    document.getElementById('ptero-bind-btn').disabled = false;
-    APP.ptero.bound = true;
-    APP.ptero.url = url;
-    APP.ptero.servers = [
-      { id: 'lls-survival', name: 'LLS懶懶生存 - Survival', status: 'running', players: 0, maxPlayers: 50 },
-      { id: 'lls-creative', name: 'LLS懶懶生存 - Creative', status: 'offline', players: 0, maxPlayers: 30 }
-    ];
-    document.getElementById('ptero-not-bound').style.display = 'none';
-    document.getElementById('ptero-bound-status').style.display = 'block';
-    document.getElementById('ptero-bound-msg').textContent = '已成功綁定 Pterodactyl Panel：' + url;
-    document.getElementById('ptero-current-card').style.display = 'block';
-    document.getElementById('ptero-url-mask').textContent = url;
-    document.getElementById('ptero-key-mask').textContent = 'ptlc_•••••••••••••••••••••••••••' + key.slice(-4);
-    document.getElementById('ptero-form-title').textContent = '更新綁定';
-    renderPteroServers();
-    syncPteroServersToSelects();
-    toast('Pterodactyl 綁定成功，找到 ' + APP.ptero.servers.length + ' 台伺服器');
-    writeAuditLog('SYSTEM_BINDING_CREATE', 'BINDING', url, '成功');
-  }, 1500);
-}
 function showPteroErr(msg) {
   const el = document.getElementById('ptero-bind-err');
   el.className = 'al al-danger';
   el.textContent = msg;
   el.style.display = 'block';
-}
-function pteroVerify() {
-  if (!APP.ptero.bound) { toast('尚未綁定'); return; }
-  toast('重新驗證成功');
-  writeAuditLog('SYSTEM_BINDING_VERIFY', 'BINDING', APP.ptero.url, '成功');
-}
-function renderPteroServers() {
-  const el = document.getElementById('ptero-servers');
-  if (!APP.ptero.servers.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">無可存取的伺服器</div>'; return; }
-  el.innerHTML = APP.ptero.servers.map(s => `
-    <div class="sr">
-      <span class="dot ${s.status==='running'?'dot-ok':'dot-off'}"></span>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${s.name}</div><div style="font-size:11px;color:var(--t3)">ID: ${s.id}</div></div>
-      <span class="badge ${s.status==='running'?'bok':'bmute'}">${s.status==='running'?'運行中':'離線'}</span>
-    </div>`).join('');
 }
 function syncPteroServersToSelects() {
   ['mc-srv-sel','mcs-srv-sel'].forEach(id => {
@@ -1292,21 +1215,6 @@ function syncPteroServersToSelects() {
 }
 
 // ─── MC Controls ──────────────────────────────────────────────
-function switchMcServer() {
-  const id = document.getElementById('mc-srv-sel').value;
-  if (!id) return;
-  const srv = APP.ptero.servers.find(s => s.id === id);
-  if (!srv) return;
-  APP.mc.selectedServer = srv;
-  updateMcStatusUI(srv);
-  loadMcPlayers();
-  // 載入該伺服器的所有資料
-  loadMaintenanceState();
-  renderWhitelistTable();
-  renderMcBansTable();
-  renderBackupTable();
-  renderWlCfgList();
-}
 function updateMcStatusUI(srv) {
   const running = srv.status === 'running';
   document.getElementById('mc-status-dot').className = 'dot ' + (running ? 'dot-ok' : 'dot-off');
@@ -1322,62 +1230,34 @@ function updateMcStatusUI(srv) {
     ['mc-cpu','mc-mem','mc-players'].forEach(id => document.getElementById(id).textContent = '—');
   }
 }
-function mcPower(signal) {
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-  const actions = { start:'啟動', stop:'停止', restart:'重啟', kill:'強制終止' };
-  toast('已發送' + actions[signal] + '指令到 ' + APP.mc.selectedServer.name);
-  writeAuditLog('MC_SERVER_' + signal.toUpperCase(), 'SERVER', APP.mc.selectedServer.name, '成功');
+function switchMcServer() {
+  var id = document.getElementById('mc-srv-sel').value;
+  if (!id) return;
+  var srv = APP.ptero.servers.find(function(s) { return s.id === id; });
+  if (!srv) return;
+  APP.mc.selectedServer = srv;
+  updateMcStatusUI(srv);
+  loadMcPlayers();
+  loadMaintenanceState();
+  renderWhitelistTable();
+  renderMcBansTable();
+  renderBackupTable();
+  renderWlCfgList();
 }
+
 function loadMcPlayers() {
   const el = document.getElementById('mc-player-list');
   if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>'; return; }
   el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">在線玩家列表需透過 Pterodactyl API 取得，實作後將即時顯示。</div>';
 }
 function filterMcPlayers() {}
-function loadWhitelist() {
-  const el = document.getElementById('mc-whitelist-list');
-  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
-  el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">白名單需透過 Pterodactyl API 取得</div>';
-}
 function filterWhitelist() {}
-function loadMcBans() {
-  const el = document.getElementById('mc-bans-list');
-  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
-  el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">封鎖名單需透過 Pterodactyl API 取得</div>';
-}
-function mcCreateBackup() {
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-  toast('備份任務已建立，預計 2–5 分鐘完成');
-  writeAuditLog('MC_BACKUP_CREATE', 'SERVER', APP.mc.selectedServer.name, '成功');
-}
 function loadMcLogs() {
   const el = document.getElementById('mc-log-content');
   if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3)">請先選擇伺服器</div>'; return; }
   el.innerHTML = '<div style="color:var(--t3)">日誌需透過 Pterodactyl Console API 取得，實作後將即時顯示。</div>';
 }
 function filterLogs() {}
-function loadMcSettings() {
-  const id = document.getElementById('mcs-srv-sel').value;
-  if (!id) { document.getElementById('mcs-basic-form').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>'; return; }
-  const srv = APP.ptero.servers.find(s => s.id === id);
-  if (!srv) return;
-  document.getElementById('mcs-basic-form').innerHTML = `
-    <div class="fg"><label class="fl">伺服器描述 (MOTD)</label><input class="fi" value="${srv.name}" id="mcs-motd"></div>
-    <div class="frow">
-      <div class="fg"><label class="fl">最大玩家數</label><input class="fi" type="number" value="${srv.maxPlayers}" id="mcs-maxplayers"></div>
-      <div class="fg"><label class="fl">遊戲難度</label><select class="fsel" id="mcs-diff"><option>Easy</option><option selected>Normal</option><option>Hard</option></select></div>
-    </div>
-    <div class="frow">
-      <div class="fg"><label class="fl">預設遊戲模式</label><select class="fsel" id="mcs-mode"><option selected>Survival</option><option>Creative</option><option>Adventure</option></select></div>
-      <div class="fg"><label class="fl">Server Port</label><input class="fi" value="25565" disabled><div class="fhint">需在 Pterodactyl Panel 修改</div></div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>強制白名單</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>啟用 PVP</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>正版驗證 (Online Mode)</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>
-    </div>
-    <button class="btn btn-p btn-sm" onclick="saveMcBasicSettings()">儲存設定</button>`;
-}
 function saveMcBasicSettings() {
   toast('設定已儲存，將在下次重啟後生效');
   writeAuditLog('MC_CONFIG_UPDATE', 'SERVER', document.getElementById('mcs-srv-sel').value, '成功');
@@ -1385,32 +1265,9 @@ function saveMcBasicSettings() {
 
 // ─── Maintenance ──────────────────────────────────────────────
 let maintenanceOn = false;
-function toggleMaintenance() {
-  maintenanceOn = !maintenanceOn;
-  document.getElementById('maint-dot').className = 'dot ' + (maintenanceOn ? 'dot-warn' : 'dot-off');
-  document.getElementById('maint-lbl').textContent = '維護模式：' + (maintenanceOn ? '開啟中' : '關閉');
-  document.getElementById('maint-lbl').style.color = maintenanceOn ? 'var(--warn)' : 'var(--t1)';
-  document.getElementById('maint-toggle-btn').textContent = maintenanceOn ? '關閉維護模式' : '開啟維護模式';
-  document.getElementById('maint-toggle-btn').className = maintenanceOn ? 'btn btn-sm btn-ok' : 'btn btn-p btn-sm';
-  const msg = document.getElementById('maint-msg').value;
-  toast('維護模式已' + (maintenanceOn ? '開啟' : '關閉') + (msg ? '：' + msg : ''));
-  writeAuditLog(maintenanceOn ? 'MC_MAINTENANCE_ON' : 'MC_MAINTENANCE_OFF', 'SERVER', '全體伺服器', '成功');
-}
-function wlAddPlayer() {
-  const name = document.getElementById('wl-add-name').value.trim();
-  if (!name) { toast('請輸入玩家名稱'); return; }
-  if (!APP.mc.selectedServer && !document.getElementById('mcs-srv-sel').value) { toast('請先選擇伺服器'); return; }
-  toast('已新增 ' + name + ' 至白名單');
-  document.getElementById('wl-add-name').value = '';
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
-}
 
 // ─── DC Members ───────────────────────────────────────────────
 let currentMember = null;
-function loadDCMembers() {
-  document.getElementById('dc-member-list').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">Discord Bot 連線後，成員列表將從 Discord API 取得。<br>請先在「敏感設定」完成 Bot Token 設定。</div>';
-  document.getElementById('dc-member-count').textContent = '需要 Bot 連線';
-}
 function filterMembers() {}
 function dcPage(dir) { APP.dc.page = Math.max(0, APP.dc.page + dir); }
 
@@ -1423,28 +1280,11 @@ function openTimeout(memberId, name, meta) {
   document.getElementById('tm-reason').value = '';
   openM('timeout');
 }
-function execTimeout() {
-  const reason = document.getElementById('tm-reason').value.trim();
-  if (!reason || reason.length < 10) { toast('原因至少 10 個字'); return; }
-  const dur = document.getElementById('tm-dur').value;
-  closeM('timeout');
-  toast('已對 ' + (currentMember?.name || '成員') + ' 禁言 ' + dur);
-  writeAuditLog('DISCORD_MEMBER_TIMEOUT', 'USER', currentMember?.name, '成功', { duration: dur, reason });
-  currentMember = null;
-}
 function openKick(memberId, name) {
   currentMember = { id: memberId, name };
   document.getElementById('kk-name').textContent = name;
   document.getElementById('kk-reason').value = '';
   openM('kick');
-}
-function execKick() {
-  const reason = document.getElementById('kk-reason').value.trim();
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('kick');
-  toast('已踢出 ' + (currentMember?.name || '成員'));
-  writeAuditLog('DISCORD_MEMBER_KICK', 'USER', currentMember?.name, '成功', { reason });
-  currentMember = null;
 }
 function openBan(memberId, name) {
   currentMember = { id: memberId, name };
@@ -1452,50 +1292,12 @@ function openBan(memberId, name) {
   document.getElementById('ban-reason').value = '';
   openM('ban');
 }
-function execBan() {
-  const reason = document.getElementById('ban-reason').value.trim();
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('ban');
-  toast('已封鎖 ' + (currentMember?.name || '成員') + '，審計日誌已記錄');
-  writeAuditLog('DISCORD_MEMBER_BAN', 'USER', currentMember?.name, '成功', { reason });
-  currentMember = null;
-}
 let kickPlayerTarget = null;
 function openMcKick(name) {
   kickPlayerTarget = name;
   document.getElementById('mck-name').value = name;
   document.getElementById('mck-reason').value = '';
   openM('mc-kick');
-}
-function execMcKick() {
-  const reason = document.getElementById('mck-reason').value.trim();
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('mc-kick');
-  toast('已踢出玩家 ' + kickPlayerTarget);
-  writeAuditLog('MC_PLAYER_KICK', 'PLAYER', kickPlayerTarget, '成功', { reason });
-  kickPlayerTarget = null;
-}
-function execMcBan() {
-  const name = document.getElementById('mcb-name').value.trim();
-  const reason = document.getElementById('mcb-reason').value.trim();
-  if (!name || !reason) { toast('請填入玩家名稱與原因'); return; }
-  closeM('mc-ban-player');
-  toast('已封鎖玩家 ' + name);
-  writeAuditLog('MC_PLAYER_BAN', 'PLAYER', name, '成功', { reason });
-}
-function execBroadcast() {
-  const msg = document.getElementById('bc-msg').value.trim();
-  if (!msg) { toast('請填入廣播訊息'); return; }
-  closeM('mc-broadcast');
-  toast('廣播訊息已發送：' + msg.substring(0, 30) + (msg.length > 30 ? '...' : ''));
-  writeAuditLog('MC_BROADCAST', 'SERVER', APP.mc.selectedServer?.name || '—', '成功');
-}
-function execAddWhitelist() {
-  const name = document.getElementById('wl-player-name').value.trim();
-  if (!name) { toast('請填入玩家名稱'); return; }
-  closeM('add-whitelist');
-  toast('已新增 ' + name + ' 至白名單');
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
 }
 
 // ─── Announce ─────────────────────────────────────────────────
@@ -1588,98 +1390,8 @@ function removeField(i) {
   renderFieldsList();
   updatePreview();
 }
-function sendAnnouncement() {
-  const channel = document.getElementById('ann-channel').value;
-  const title = document.getElementById('ann-title').value.trim();
-  const desc = document.getElementById('ann-desc').value.trim();
-  const schedule = document.getElementById('ann-schedule').value;
-  if (!channel) { toast('請選擇目標頻道'); return; }
-  if (!title && !desc) { toast('請填入公告標題或內容'); return; }
-  const time = new Date().toLocaleString('zh-TW');
-  const histItem = { channel, title, time, scheduled: !!schedule };
-  APP.annHistory.unshift(histItem);
-  renderAnnHistory();
-  if (schedule) {
-    toast('公告已排程：' + new Date(schedule).toLocaleString('zh-TW'));
-  } else {
-    toast('公告已發送到頻道 ' + channel);
-  }
-  writeAuditLog('DISCORD_MESSAGE_SEND', 'CHANNEL', channel, '成功', { title });
-}
-function renderAnnHistory() {
-  const el = document.getElementById('ann-history');
-  if (!APP.annHistory.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無公告紀錄</div>'; return; }
-  el.innerHTML = APP.annHistory.slice(0, 5).map(h =>
-    `<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:6px">
-      <div style="font-size:12px;font-weight:500">${h.title || '（無標題）'}</div>
-      <div style="font-size:11px;color:var(--t3)">頻道：${h.channel} · ${h.time}${h.scheduled?' · 已排程':''}</div>
-    </div>`
-  ).join('');
-}
-function loadAnnChannels() {
-  const sel = document.getElementById('ann-channel');
-  const rawChannels = document.getElementById('pub-channels')?.value || '';
-  sel.innerHTML = '<option value="">— 選擇頻道 —</option>';
-  const lines = rawChannels.split('\n').filter(l => l.trim());
-  lines.forEach(line => {
-    const [id, name] = line.split(':');
-    if (id && name) {
-      const opt = document.createElement('option');
-      opt.value = id.trim();
-      opt.textContent = '#' + name.trim();
-      sel.appendChild(opt);
-    }
-  });
-  if (!lines.length) {
-    sel.innerHTML = '<option value="">— 請先在敏感設定填入頻道清單 —</option>';
-  }
-}
 
 // ─── Sensitive Settings ───────────────────────────────────────
-function saveSensitive(type) {
-  if (type === 'mgmt') {
-    APP.settings.mgmt = {
-      guildId: document.getElementById('mgmt-guild-id').value,
-      auditCh: document.getElementById('mgmt-audit-ch').value,
-      alertCh: document.getElementById('mgmt-alert-ch').value,
-      playerCh: document.getElementById('mgmt-player-ch').value
-    };
-    toast('管理伺服器設定已儲存');
-    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '管理伺服器', '成功');
-  } else if (type === 'pub') {
-    APP.settings.pub = {
-      guildId: document.getElementById('pub-guild-id').value,
-      announceCh: document.getElementById('pub-announce-ch').value,
-      channels: document.getElementById('pub-channels').value
-    };
-    toast('玩家伺服器設定已儲存');
-    loadAnnChannels();
-    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '玩家伺服器', '成功');
-  } else if (type === 'bot') {
-    const token = document.getElementById('bot-token').value.trim();
-    if (!token) { toast('請填入 Bot Token'); return; }
-    toast('Bot Token 已更新，Bot 正在重新連線...');
-    document.getElementById('bot-token').value = '';
-    writeAuditLog('SECURITY_SENSITIVE_UPDATE', 'SETTING', 'Bot Token', '成功');
-    setTimeout(checkBotStatus, 1000);
-  }
-}
-function testChannel(label) {
-  toast('測試訊息已發送到「' + label + '」，請確認是否收到');
-}
-function checkBotStatus() {
-  const dot = document.getElementById('bot-dot');
-  const text = document.getElementById('bot-status-text');
-  if (APP.settings.bot.connected) {
-    dot.className = 'dot dot-ok';
-    text.textContent = 'Bot 已連線';
-    text.style.color = 'var(--ok)';
-  } else {
-    dot.className = 'dot dot-off';
-    text.textContent = 'Bot 尚未連線，請設定 Bot Token';
-    text.style.color = 'var(--t2)';
-  }
-}
 
 // ─── Admin Users ──────────────────────────────────────────────
 const ROLE_LABELS = {
@@ -1701,33 +1413,8 @@ const ROLE_BADGE = {
 const ADMINS = [
   { email:'owner@lls.dev', name:'LLS 擁有者', role:'owner', created:'2024-01-01', lastLogin:'剛才', status:'active' }
 ];
-function renderUsers() {
-  const tbody = document.getElementById('users-tbody');
-  tbody.innerHTML = ADMINS.map(a =>
-    `<tr>
-      <td><div style="font-weight:500">${a.name}</div><div style="font-size:11px;color:var(--t3)">${a.email}</div></td>
-      <td><span class="badge ${ROLE_BADGE[a.role]}">${ROLE_LABELS[a.role]||a.role}</span></td>
-      <td style="color:var(--t3)">${a.created}</td>
-      <td style="color:var(--t3)">${a.lastLogin}</td>
-      <td><span class="badge ${a.status==='active'?'bok':'bwarn'}">${a.status==='active'?'正常':'停用'}</span></td>
-      <td>${a.role==='owner'?'<span style="font-size:12px;color:var(--t3)">不可修改</span>':'<div style="display:flex;gap:4px"><button class="btn btn-sm">詳情</button><button class="btn btn-sm btn-d" onclick="toast(\'帳號已停用\')">停用</button></div>'}</td>
-    </tr>`
-  ).join('');
-}
-function execAddAdmin() {
-  const email = document.getElementById('aa-email').value.trim();
-  const role = document.getElementById('aa-role').value;
-  const note = document.getElementById('aa-note').value;
-  if (!email) { toast('請填入 Email'); return; }
-  ADMINS.push({ email, name: email.split('@')[0], role, created: new Date().toISOString().split('T')[0], lastLogin: '—', status: 'active', note });
-  closeM('add-admin');
-  renderUsers();
-  toast('已新增管理員 ' + email);
-  writeAuditLog('SYSTEM_ADMIN_CREATE', 'USER', email, '成功', { role });
-}
 
-// ─── Audit Logs ───────────────────────────────────────────────
-function writeAuditLog(action, targetType, targetName, result, params = {}) {
+// ─── Audit Logs ───────────────────────────────────────────────) {
   const log = {
     timestamp: new Date(),
     actor: APP.currentUser?.displayName || '—',
@@ -1744,50 +1431,6 @@ function writeAuditLog(action, targetType, targetName, result, params = {}) {
     renderAuditTable();
   }
 }
-function loadAuditLogs() { renderAuditTable(); }
-function renderAuditTable() {
-  const tbody = document.getElementById('audit-tbody');
-  if (!APP.audit.logs.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無操作紀錄</td></tr>';
-    document.getElementById('audit-count').textContent = '0 筆紀錄';
-    return;
-  }
-  const start = APP.audit.page * APP.audit.perPage;
-  const page = APP.audit.logs.slice(start, start + APP.audit.perPage);
-  tbody.innerHTML = page.map(l => {
-    const t = l.timestamp;
-    const timeStr = t.toLocaleTimeString('zh-TW', { hour12: false });
-    const rClass = l.result === '成功' ? 'bok' : 'bdanger';
-    return `<tr>
-      <td style="font-family:monospace;font-size:11px;color:var(--t3)">${timeStr}</td>
-      <td><div style="font-size:12px;font-weight:500">${l.actor}</div><div style="font-size:10px;color:var(--t3)">${l.actorRole}</div></td>
-      <td style="font-size:12px">${l.action}</td>
-      <td><span class="badge bmute" style="font-size:10px">${l.targetType}</span> ${l.targetName}</td>
-      <td><span class="badge ${rClass}">${l.result}</span></td>
-      <td><button class="btn btn-sm btn-ghost" onclick="toast('Log ID: ${Math.random().toString(36).slice(2,10)}')">詳情</button></td>
-    </tr>`;
-  }).join('');
-  document.getElementById('audit-count').textContent = `顯示 ${start+1}–${Math.min(start+APP.audit.perPage, APP.audit.logs.length)} / 共 ${APP.audit.logs.length} 筆`;
-}
-function auditPage(dir) {
-  const maxPage = Math.floor(APP.audit.logs.length / APP.audit.perPage);
-  APP.audit.page = Math.max(0, Math.min(maxPage, APP.audit.page + dir));
-  renderAuditTable();
-}
-function exportAudit() {
-  const headers = ['時間','執行者','身分組','操作','目標類型','目標名稱','結果'];
-  const rows = APP.audit.logs.map(l => [
-    l.timestamp.toLocaleString('zh-TW'), l.actor, l.actorRole,
-    l.action, l.targetType, l.targetName, l.result
-  ]);
-  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'panelbridge-audit-' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click(); URL.revokeObjectURL(url);
-  toast('審計日誌已匯出');
-}
 
 // ─── Confirm Dialog ───────────────────────────────────────────
 const CONFIRMS = {
@@ -1797,17 +1440,6 @@ const CONFIRMS = {
   restore: { title:'確認還原備份', sub:'還原後伺服器資料將回到備份時間點', alert:'此操作不可逆！當前資料將被備份覆蓋', label:'輸入「CONFIRM RESTORE」以確認', ph:'CONFIRM RESTORE', cb:()=>{ toast('備份還原任務已建立'); writeAuditLog('MC_BACKUP_RESTORE','SERVER','—','成功'); } },
   'emergency-lock': { title:'開啟緊急鎖定', sub:'所有非擁有者帳號的 API 請求將立即被拒絕', alert:'此操作將立即影響所有在線管理員', label:'輸入「CONFIRM LOCK」以確認', ph:'CONFIRM LOCK', cb:()=>{ toast('緊急鎖定已開啟，Discord 通知已發送'); writeAuditLog('SECURITY_EMERGENCY_LOCK','SETTING','系統','成功'); } }
 };
-function confirmAction(type) {
-  const c = CONFIRMS[type]; if (!c) return;
-  document.getElementById('cf-title').textContent = c.title;
-  document.getElementById('cf-sub').textContent = c.sub;
-  document.getElementById('cf-alert').textContent = c.alert;
-  document.getElementById('cf-label').textContent = c.label;
-  document.getElementById('cf-input').placeholder = c.ph;
-  document.getElementById('cf-input').value = '';
-  document.getElementById('cf-btn').onclick = () => { closeM('confirm'); c.cb(); };
-  openM('confirm');
-}
 
 // ─── Profile ──────────────────────────────────────────────────
 function saveProfile() {
@@ -1834,48 +1466,11 @@ function toast(msg) {
 }
 
 // ─── Alerts ───────────────────────────────────────────────────
-function clearAllAlerts() {
-  document.getElementById('alert-list').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">所有警示已確認</div>';
-  document.querySelector('.nbadge') && (document.querySelector('.nbadge').textContent = '0');
-  toast('所有警示已確認');
-}
 
 // ─── Role select ──────────────────────────────────────────────
-function selectRole(r) {
-  const labels = {
-    'owner': '最高擁有者（不可修改）',
-    'super-admin': '超級管理員 許可操作',
-    'discord-admin': 'Discord 管理員 許可操作',
-    'mc-admin': 'Minecraft 管理員 許可操作',
-    'auditor': '審計員 許可操作',
-    'viewer': '觀察員 許可操作'
-  };
-  document.getElementById('role-perm-title').textContent = labels[r] || r;
-  document.querySelectorAll('#role-list .card').forEach(c => { c.style.borderColor = ''; });
-  event.currentTarget.style.borderColor = 'var(--acc)';
-}
 
 // ─── MC Whitelist full render ─────────────────────────────────
 const WL_DATA = [];
-function renderWhitelistTable() {
-  const el = document.getElementById('mc-whitelist-list');
-  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
-  if (!WL_DATA.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">白名單為空。實作後將透過 Pterodactyl API 取得實際資料。</div>';
-    return;
-  }
-  const search = (document.getElementById('wl-search')?.value || '').toLowerCase();
-  const rows = WL_DATA.filter(p => !search || p.name.toLowerCase().includes(search));
-  el.innerHTML = `<table class="tbl">
-    <thead><tr><th>玩家名稱</th><th>新增時間</th><th>新增者</th><th>操作</th></tr></thead>
-    <tbody>${rows.map(p => `<tr>
-      <td><strong>${p.name}</strong></td>
-      <td style="color:var(--t3)">${p.added}</td>
-      <td style="color:var(--t3)">${p.by}</td>
-      <td><button class="btn btn-sm btn-d" onclick="removeWhitelistEntry('${p.name}')">移除</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
 function removeWhitelistEntry(name) {
   const i = WL_DATA.findIndex(p => p.name === name);
   if (i > -1) WL_DATA.splice(i, 1);
@@ -1886,24 +1481,6 @@ function removeWhitelistEntry(name) {
 
 // ─── MC Bans full render ──────────────────────────────────────
 const MCBAN_DATA = [];
-function renderMcBansTable() {
-  const el = document.getElementById('mc-bans-list');
-  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
-  if (!MCBAN_DATA.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">封鎖名單為空。實作後將透過 Pterodactyl API 取得實際資料。</div>';
-    return;
-  }
-  el.innerHTML = `<table class="tbl">
-    <thead><tr><th>玩家名稱</th><th>原因</th><th>到期時間</th><th>封鎖者</th><th>操作</th></tr></thead>
-    <tbody>${MCBAN_DATA.map(b => `<tr>
-      <td><strong>${b.name}</strong></td>
-      <td style="color:var(--t3)">${b.reason}</td>
-      <td style="color:${b.expires?'var(--warn)':'var(--t3)'}">${b.expires||'永久'}</td>
-      <td style="color:var(--t3)">${b.by}</td>
-      <td><button class="btn btn-sm btn-ok" onclick="removeMcBan('${b.name}')">解除</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
 function removeMcBan(name) {
   const i = MCBAN_DATA.findIndex(b => b.name === name);
   if (i > -1) MCBAN_DATA.splice(i, 1);
@@ -1914,27 +1491,6 @@ function removeMcBan(name) {
 
 // ─── Backup full render ───────────────────────────────────────
 const BACKUP_DATA = [];
-function renderBackupTable() {
-  const el = document.getElementById('mc-backup-list');
-  if (!APP.mc.selectedServer) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>'; return; }
-  if (!BACKUP_DATA.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">尚無備份。實作後將透過 Pterodactyl API 取得備份列表。</div>';
-    return;
-  }
-  el.innerHTML = `<table class="tbl">
-    <thead><tr><th>備份名稱</th><th>建立時間</th><th>大小</th><th>狀態</th><th>操作</th></tr></thead>
-    <tbody>${BACKUP_DATA.map(b => `<tr>
-      <td><strong>${b.name}</strong></td>
-      <td style="color:var(--t3)">${b.time}</td>
-      <td>${b.size}</td>
-      <td><span class="badge ${b.ok?'bok':'bdanger'}">${b.ok?'完成':'失敗'}</span></td>
-      <td><div style="display:flex;gap:4px">
-        <button class="btn btn-sm btn-d" onclick="confirmAction('restore')">還原</button>
-        <button class="btn btn-sm" onclick="deleteBackup('${b.name}')">刪除</button>
-      </div></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-}
 function deleteBackup(name) {
   const i = BACKUP_DATA.findIndex(b => b.name === name);
   if (i > -1) BACKUP_DATA.splice(i, 1);
@@ -1944,184 +1500,744 @@ function deleteBackup(name) {
 
 // ─── Override switchMcServer with full render ─────────────────
 
-
 // ─── Override loadMcBans ──────────────────────────────────────
 function loadMcBans() { renderMcBansTable(); }
 function loadWhitelist() { renderWhitelistTable(); }
 
 // ─── Override execMcBan to push to list ──────────────────────
-function execMcBan() {
-  const name = document.getElementById('mcb-name').value.trim();
-  const reason = document.getElementById('mcb-reason').value.trim();
-  if (!name || !reason) { toast('請填入玩家名稱與原因'); return; }
-  MCBAN_DATA.push({ name, reason, expires: document.getElementById('mcb-expires').value || null, by: APP.currentUser?.displayName || '—' });
-  renderMcBansTable();
-  closeM('mc-ban-player');
-  toast('已封鎖玩家 ' + name);
-  writeAuditLog('MC_PLAYER_BAN', 'PLAYER', name, '成功', { reason });
-}
 
 // ─── Override execAddWhitelist to push to list ────────────────
-function execAddWhitelist() {
-  const name = document.getElementById('wl-player-name').value.trim();
-  if (!name) { toast('請填入玩家名稱'); return; }
-  WL_DATA.push({ name, added: new Date().toLocaleDateString('zh-TW'), by: APP.currentUser?.displayName || '—' });
-  renderWhitelistTable();
-  closeM('add-whitelist');
-  toast('已新增 ' + name + ' 至白名單');
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
-}
 
 // ─── Override wlAddPlayer ─────────────────────────────────────
-function wlAddPlayer() {
-  const name = document.getElementById('wl-add-name').value.trim();
-  if (!name) { toast('請輸入玩家名稱'); return; }
-  WL_DATA.push({ name, added: new Date().toLocaleDateString('zh-TW'), by: APP.currentUser?.displayName || '—' });
-  renderWhitelistTable();
-  renderWlCfgList();
-  document.getElementById('wl-add-name').value = '';
-  toast('已新增 ' + name + ' 至白名單');
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
-}
-function renderWlCfgList() {
-  const el = document.getElementById('wl-cfg-list');
-  if (!WL_DATA.length) { el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px 0">白名單為空</div>'; return; }
-  el.innerHTML = `<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增者</th><th>操作</th></tr></thead><tbody>
-    ${WL_DATA.slice(0,10).map(p=>`<tr><td><strong>${p.name}</strong></td><td style="color:var(--t3)">${p.by}</td><td><button class="btn btn-sm btn-d" onclick="removeWhitelistEntry('${p.name}');renderWlCfgList()">移除</button></td></tr>`).join('')}
-  </tbody></table>`;
-}
 
 // ─── Override mcCreateBackup to add to list ───────────────────
-function mcCreateBackup() {
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-  const name = 'manual-' + new Date().toISOString().slice(0,16).replace('T','-').replace(':','');
-  BACKUP_DATA.unshift({ name, time: new Date().toLocaleString('zh-TW'), size: '計算中...', ok: true });
-  renderBackupTable();
-  toast('備份任務已建立：' + name);
-  writeAuditLog('MC_BACKUP_CREATE', 'SERVER', APP.mc.selectedServer.name, '成功');
-}
 
 // ─── Status page full render ──────────────────────────────────
-function renderStatusPage() {
-  // Bot status
-  const botDot = document.getElementById('st-bot-dot');
-  const botLbl = document.getElementById('st-bot-lbl');
-  if (APP.settings.bot.connected) {
-    botDot.className = 'dot dot-ok';
-    botLbl.textContent = '已連線';
-    botLbl.style.color = 'var(--ok)';
-  } else {
-    botDot.className = 'dot dot-off';
-    botLbl.textContent = '尚未連線';
-    botLbl.style.color = 'var(--t2)';
-  }
-  // Firebase
-  const fbEl = document.getElementById('st-firebase');
-  fbEl.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t2)">Authentication</span><div style="display:flex;align-items:center;gap:6px"><span class="dot dot-ok"></span><span style="color:var(--ok)">正常</span></div></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span style="color:var(--t2)">Firestore</span><div style="display:flex;align-items:center;gap:6px"><span class="dot dot-ok"></span><span style="color:var(--ok)">正常</span></div></div>
-      <div style="font-size:12px;color:var(--t2)">今日讀取額度：需要 Firebase 控制台查詢</div>
-      <div style="font-size:12px;color:var(--t2)">今日寫入額度：需要 Firebase 控制台查詢</div>
-      <div class="al al-info" style="font-size:11px;margin-bottom:0">Firebase Spark 免費方案：每日 50K 讀 / 20K 寫 / 1GB 儲存</div>
-    </div>`;
-  // Ptero bindings
-  const tbody = document.querySelector('#st-ptero-tbl tbody');
-  if (!APP.ptero.bound) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--t3);padding:16px;text-align:center">尚未綁定 Pterodactyl Panel</td></tr>';
-  } else {
-    tbody.innerHTML = `<tr>
-      <td>${APP.currentUser?.displayName || '擁有者'}</td>
-      <td style="font-size:12px;color:var(--t3)">${APP.ptero.url}</td>
-      <td style="color:var(--ok)">${new Date().toLocaleTimeString('zh-TW',{hour12:false})}</td>
-      <td>${APP.ptero.servers.length}</td>
-      <td><span class="badge bok">正常</span></td>
-    </tr>`;
-  }
-}
 
 // ─── DC Roles render ──────────────────────────────────────────
-function renderDcRoles() {
-  const el = document.getElementById('dc-roles-list');
-  el.innerHTML = `<div class="al al-info" style="margin-bottom:12px;font-size:12px">角色資料需 Discord Bot 連線後取得。角色指派可在「成員管理」操作；建立或修改角色需在 Discord 管理介面操作。</div>
-  <div style="color:var(--t3);font-size:12px;padding:10px 0">完成 Bot 設定後，此處將顯示伺服器所有角色及其成員數量。</div>`;
-}
 
 // ─── DC Bans render ───────────────────────────────────────────
-function renderDcBans() {
-  const el = document.getElementById('dc-bans-list');
-  el.innerHTML = `<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">Discord 封鎖名單需 Bot 連線後取得。<br>實作後將可在此搜尋、查看與解除封鎖。</div>`;
-}
 
 // ─── Dashboard real render ────────────────────────────────────
-function loadDashboardFull() {
-  // Servers
-  const srvEl = document.getElementById('dash-servers');
-  if (!APP.ptero.bound || !APP.ptero.servers.length) {
-    srvEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態。<br><button class="btn btn-sm" style="margin-top:8px" onclick="pg(\'pterodactyl\',\'Pterodactyl 綁定\')">前往綁定</button></div>';
-  } else {
-    srvEl.innerHTML = APP.ptero.servers.map(s => `
-      <div class="sr">
-        <span class="dot ${s.status==='running'?'dot-ok':'dot-off'}"></span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:500">${s.name}</div>
-          <div style="font-size:11px;color:var(--t3)">${s.status==='running'?s.players+'/'+s.maxPlayers+' 玩家':'離線'}</div>
-        </div>
-        <div style="display:flex;gap:4px">
-          ${s.status==='running'
-            ? `<button class="btn btn-sm btn-d" onclick="confirmAction('stop')">停止</button><button class="btn btn-sm" onclick="confirmAction('restart')">重啟</button>`
-            : `<button class="btn btn-sm btn-p" onclick="mcPower('start')">啟動</button>`}
-        </div>
-      </div>`).join('');
+
+
+// ─── Init on page load ────────────────────────────────────────;
+
+// ════════════════════════════════════════════════════════════════
+// PERSISTENCE + REAL FUNCTIONS BLOCK
+// 所有函式都在此統一定義，無重複
+// ════════════════════════════════════════════════════════════════
+
+// ── localStorage 工具 ───────────────────────────────────────────
+var STORE = {
+  _k: function(k) { return 'lls_' + k; },
+  get: function(k, def) {
+    try { var v = localStorage.getItem(this._k(k)); return v !== null ? JSON.parse(v) : def; }
+    catch(e) { return def; }
+  },
+  set: function(k, v) {
+    try { localStorage.setItem(this._k(k), JSON.stringify(v)); } catch(e) {}
+  },
+  push: function(k, item, max) {
+    var arr = this.get(k, []); arr.unshift(item);
+    if (max && arr.length > max) arr.length = max;
+    this.set(k, arr); return arr;
   }
-  // Discord
-  const dcEl = document.getElementById('dash-discord');
-  if (!APP.settings.bot.connected) {
-    dcEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot Token 設定後顯示 Discord 摘要。<br><button class="btn btn-sm" style="margin-top:8px" onclick="pg(\'sensitive\',\'敏感設定\')">前往設定</button></div>';
-  } else {
-    dcEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">成員總數</div><div style="font-size:18px;font-weight:600">—</div></div>
-      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日加入</div><div style="font-size:18px;font-weight:600;color:var(--ok)">—</div></div>
-      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日禁言</div><div style="font-size:18px;font-weight:600">—</div></div>
-      <div style="background:var(--bg);border-radius:6px;padding:9px"><div style="font-size:10px;color:var(--t3)">今日封鎖</div><div style="font-size:18px;font-weight:600;color:var(--danger)">—</div></div>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2)"><span class="dot dot-ok"></span>Bot 已連線</div>`;
-  }
-  // Logs
-  const logEl = document.getElementById('dash-logs');
-  if (!APP.audit.logs.length) {
-    logEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄</div>';
-  } else {
-    const icons = { 'BAN':'li-d','KICK':'li-d','TIM':'li-w','RST':'li-ok','WHT':'li-ok','ERR':'li-d','ADD':'li-ok' };
-    logEl.innerHTML = APP.audit.logs.slice(0,5).map(l => {
-      const code = l.action.replace('DISCORD_MEMBER_','').replace('MC_SERVER_','').replace('MC_PLAYER_','').replace('MC_WHITELIST_','WHT').replace('SYSTEM_BINDING_','ADD').slice(0,3);
-      const cls = icons[code] || 'li-ok';
-      const t = l.timestamp.toLocaleTimeString('zh-TW',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      return `<div class="lr"><div class="lt">${t}</div><div class="li ${cls}">${code}</div><div class="lb"><div class="la">${l.action} - ${l.targetName}</div><div class="lm">${l.actor} · ${l.result}</div></div></div>`;
-    }).join('');
-  }
-  document.getElementById('s-ops').textContent = APP.audit.logs.length;
+};
+
+// ── 審計日誌 ────────────────────────────────────────────────────
+function writeAuditLog(action, tType, tName, result, params) {
+  var log = {
+    id: Math.random().toString(36).slice(2,10),
+    timestamp: new Date().toISOString(),
+    actor: (APP.currentUser && (APP.currentUser.displayName || APP.currentUser.email)) || '未知',
+    actorRole: '最高擁有者',
+    action: action, targetType: tType || '—',
+    targetName: tName || '—', result: result || '成功',
+    params: params || {}
+  };
+  STORE.push('audit_logs', log, 500);
+  APP.audit.logs = STORE.get('audit_logs', []);
+  var el = document.getElementById('s-ops'); if (el) el.textContent = APP.audit.logs.length;
+  var auditPage = document.getElementById('page-audit');
+  if (auditPage && auditPage.classList.contains('active')) renderAuditTable();
+  var dashPage = document.getElementById('page-dashboard');
+  if (dashPage && dashPage.classList.contains('active')) renderDashLogs();
 }
 
+function loadAuditLogs() {
+  APP.audit.logs = STORE.get('audit_logs', []);
+}
 
-// ─── Init on page load ────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  renderUsers();
-  loadAuditLogs();
-  const today = new Date().toISOString().split('T')[0];
-  const week = new Date(Date.now() - 7*86400000).toISOString().split('T')[0];
-  document.getElementById('audit-from').value = week;
-  document.getElementById('audit-to').value = today;
-  loadTemplate();
-  loadAnnChannels();
+function renderAuditTable() {
+  var tbody = document.getElementById('audit-tbody'); if (!tbody) return;
+  var logs = APP.audit.logs || [];
+  if (!logs.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無操作紀錄</td></tr>';
+    var c = document.getElementById('audit-count'); if (c) c.textContent = '0 筆紀錄';
+    return;
+  }
+  var catF = (document.getElementById('audit-cat') || {}).value || '';
+  var resF = (document.getElementById('audit-result') || {}).value || '';
+  var fromD = (document.getElementById('audit-from') || {}).value || '';
+  var toD   = (document.getElementById('audit-to') || {}).value || '';
+  var filtered = logs.filter(function(l) {
+    if (catF && !l.action.startsWith(catF)) return false;
+    if (resF && l.result !== resF) return false;
+    if (fromD && l.timestamp.slice(0,10) < fromD) return false;
+    if (toD   && l.timestamp.slice(0,10) > toD)   return false;
+    return true;
+  });
+  var perPage = 20, page = APP.audit.page || 0, start = page * perPage;
+  var slice = filtered.slice(start, start + perPage);
+  var countEl = document.getElementById('audit-count');
+  if (countEl) countEl.textContent = '顯示 '+(start+1)+'–'+Math.min(start+perPage,filtered.length)+' / 共 '+filtered.length+' 筆';
+  tbody.innerHTML = slice.map(function(l) {
+    var t = new Date(l.timestamp).toLocaleTimeString('zh-TW',{hour12:false});
+    var bad = l.result === '失敗';
+    return '<tr>'
+      +'<td style="font-family:monospace;font-size:11px;color:var(--t3)">'+t+'</td>'
+      +'<td><div style="font-size:12px;font-weight:500">'+l.actor+'</div>'
+      +'<div style="font-size:10px;color:var(--t3)">'+l.actorRole+'</div></td>'
+      +'<td style="font-size:12px">'+l.action+'</td>'
+      +'<td><span class="badge bmute" style="font-size:10px">'+l.targetType+'</span> '+l.targetName+'</td>'
+      +'<td><span class="badge '+(bad?'bdanger':'bok')+'">'+l.result+'</span></td>'
+      +'<td><button class="btn btn-sm btn-ghost" onclick="showLogDetail(\''+l.id+'\')">詳情</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function auditPage(dir) {
+  APP.audit.page = Math.max(0, (APP.audit.page||0) + dir);
+  renderAuditTable();
+}
+
+function showLogDetail(id) {
+  var log = (APP.audit.logs||[]).find(function(l){return l.id===id;});
+  if (!log) { toast('找不到此紀錄'); return; }
+  var lines = ['Log ID：'+log.id,'時間：'+new Date(log.timestamp).toLocaleString('zh-TW'),
+    '執行者：'+log.actor+' ('+log.actorRole+')','操作：'+log.action,
+    '目標：'+log.targetType+' '+log.targetName,'結果：'+log.result];
+  if (Object.keys(log.params).length) lines.push('參數：'+JSON.stringify(log.params));
+  alert(lines.join('\n'));
+}
+
+function exportAudit() {
+  var logs = APP.audit.logs || [];
+  if (!logs.length) { toast('尚無操作紀錄可以匯出'); return; }
+  var headers = ['時間','執行者','身分組','操作','目標類型','目標名稱','結果'];
+  var rows = logs.map(function(l){
+    return [new Date(l.timestamp).toLocaleString('zh-TW'),l.actor,l.actorRole,l.action,l.targetType,l.targetName,l.result];
+  });
+  var csv = [headers].concat(rows).map(function(r){return r.join(',');}).join('\n');
+  var blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href=url; a.download='lls-audit-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('審計日誌已匯出（'+logs.length+' 筆）');
+}
+
+// ── 管理員帳號 ──────────────────────────────────────────────────
+var ROLE_LABELS = {'owner':'最高擁有者','super-admin':'超級管理員','discord-admin':'Discord 管理員','mc-admin':'Minecraft 管理員','auditor':'審計員','viewer':'觀察員'};
+var ROLE_BADGE  = {'owner':'bdanger','super-admin':'bwarn','discord-admin':'bacc','mc-admin':'binfo','auditor':'bmute','viewer':'bmute'};
+
+function ensureOwnerAdmin() {
+  if (!APP.currentUser) return;
+  var list = STORE.get('admins',[]);
+  var exists = list.some(function(a){return a.uid===APP.currentUser.uid;});
+  if (!exists) {
+    list.unshift({uid:APP.currentUser.uid||'owner',email:APP.currentUser.email,
+      name:APP.currentUser.displayName||APP.currentUser.email,role:'owner',
+      created:new Date().toLocaleDateString('zh-TW'),lastLogin:new Date().toLocaleString('zh-TW'),status:'active'});
+  } else {
+    list.forEach(function(a){ if(a.uid===APP.currentUser.uid) a.lastLogin=new Date().toLocaleString('zh-TW'); });
+  }
+  STORE.set('admins',list);
+}
+
+function renderUsers() {
+  var tbody = document.getElementById('users-tbody'); if (!tbody) return;
+  var admins = STORE.get('admins',[]);
+  if (!admins.length) { tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無管理員記錄</td></tr>'; return; }
+  tbody.innerHTML = admins.map(function(a) {
+    var badge=ROLE_BADGE[a.role]||'bmute', label=ROLE_LABELS[a.role]||a.role;
+    var isOwner=a.role==='owner';
+    var statusBadge=a.status==='active'?'<span class="badge bok">正常</span>':'<span class="badge bwarn">停用中</span>';
+    var actions=isOwner?'<span style="font-size:12px;color:var(--t3)">不可修改</span>'
+      :'<div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="showAdminDetail(\''+a.uid+'\')">詳情</button>'
+      +(a.status==='active'?'<button class="btn btn-sm btn-d" onclick="toggleAdminStatus(\''+a.uid+'\',\'disable\')">停用</button>'
+      :'<button class="btn btn-sm btn-p" onclick="toggleAdminStatus(\''+a.uid+'\',\'enable\')">啟用</button>')+'</div>';
+    return '<tr><td><div style="font-weight:500">'+a.name+'</div><div style="font-size:11px;color:var(--t3)">'+a.email+'</div></td>'
+      +'<td><span class="badge '+badge+'">'+label+'</span></td>'
+      +'<td style="color:var(--t3)">'+a.created+'</td>'
+      +'<td style="color:var(--t3)">'+a.lastLogin+'</td>'
+      +'<td>'+statusBadge+'</td><td>'+actions+'</td></tr>';
+  }).join('');
+}
+
+function showAdminDetail(uid) {
+  var a=(STORE.get('admins',[])).find(function(x){return x.uid===uid;});
+  if (!a) return;
+  alert('帳號：'+a.email+'\n身分組：'+(ROLE_LABELS[a.role]||a.role)+'\n建立：'+a.created+'\n最後登入：'+a.lastLogin+(a.note?'\n備註：'+a.note:''));
+}
+function toggleAdminStatus(uid,action) {
+  var list=STORE.get('admins',[]);
+  list.forEach(function(a){if(a.uid===uid)a.status=action==='enable'?'active':'disabled';});
+  STORE.set('admins',list); renderUsers();
+  toast('帳號狀態已更新'); writeAuditLog('SYSTEM_ADMIN_'+action.toUpperCase(),'USER',uid,'成功');
+}
+function execAddAdmin() {
+  var email=((document.getElementById('aa-email')||{}).value||'').trim();
+  var role=(document.getElementById('aa-role')||{}).value;
+  var note=((document.getElementById('aa-note')||{}).value||'');
+  if (!email) { toast('請填入 Email'); return; }
+  var list=STORE.get('admins',[]);
+  if (list.some(function(a){return a.email===email;})) { toast('此 Email 已存在'); return; }
+  list.push({uid:'uid_'+Date.now(),email:email,name:email.split('@')[0],role:role,
+    created:new Date().toLocaleDateString('zh-TW'),lastLogin:'尚未登入',status:'active',note:note});
+  STORE.set('admins',list); closeM('add-admin'); renderUsers();
+  toast('已新增管理員：'+email);
+  writeAuditLog('SYSTEM_ADMIN_CREATE','USER',email,'成功',{role:role});
+}
+
+// ── 敏感設定 ────────────────────────────────────────────────────
+function saveSensitive(type) {
+  if (type==='mgmt') {
+    STORE.set('cfg_mgmt',{
+      guildId: ((document.getElementById('mgmt-guild-id')||{}).value||''),
+      auditCh: ((document.getElementById('mgmt-audit-ch')||{}).value||''),
+      alertCh: ((document.getElementById('mgmt-alert-ch')||{}).value||''),
+      playerCh:((document.getElementById('mgmt-player-ch')||{}).value||'')
+    });
+    toast('管理伺服器設定已儲存 ✓');
+    writeAuditLog('SECURITY_AUDIT_CHANNEL','SETTING','管理伺服器','成功');
+  } else if (type==='pub') {
+    STORE.set('cfg_pub',{
+      guildId:   ((document.getElementById('pub-guild-id')||{}).value||''),
+      announceCh:((document.getElementById('pub-announce-ch')||{}).value||''),
+      channels:  ((document.getElementById('pub-channels')||{}).value||'')
+    });
+    toast('玩家伺服器設定已儲存 ✓');
+    loadAnnChannels();
+    writeAuditLog('SECURITY_AUDIT_CHANNEL','SETTING','玩家伺服器','成功');
+  } else if (type==='bot') {
+    var token=((document.getElementById('bot-token')||{}).value||'').trim();
+    if (!token) { toast('請填入 Bot Token'); return; }
+    STORE.set('cfg_bot_ok',true);
+    var el=document.getElementById('bot-token'); if(el) el.value='';
+    APP.settings.bot.connected=true;
+    toast('Bot Token 已更新 ✓');
+    checkBotStatus();
+    writeAuditLog('SECURITY_SENSITIVE_UPDATE','SETTING','Bot Token','成功');
+  }
+}
+
+function loadSensitiveSettings() {
+  var mgmt=STORE.get('cfg_mgmt',{}), pub=STORE.get('cfg_pub',{});
+  var map={'mgmt-guild-id':mgmt.guildId,'mgmt-audit-ch':mgmt.auditCh,'mgmt-alert-ch':mgmt.alertCh,
+    'mgmt-player-ch':mgmt.playerCh,'pub-guild-id':pub.guildId,'pub-announce-ch':pub.announceCh,'pub-channels':pub.channels};
+  Object.keys(map).forEach(function(id){
+    var el=document.getElementById(id); if(el&&map[id]) el.value=map[id];
+  });
+  if (STORE.get('cfg_bot_ok',false)) { APP.settings.bot.connected=true; checkBotStatus(); }
+}
+
+function checkBotStatus() {
+  var dot=document.getElementById('bot-dot'), text=document.getElementById('bot-status-text');
+  if (!dot||!text) return;
+  if (APP.settings.bot.connected) {
+    dot.className='dot dot-ok'; text.textContent='Bot Token 已設定'; text.style.color='var(--ok)';
+  } else {
+    dot.className='dot dot-off'; text.textContent='Bot 尚未設定，請填入 Bot Token'; text.style.color='var(--t2)';
+  }
+}
+
+function testChannel(label) {
+  var cfg=STORE.get('cfg_mgmt',{}); var pub=STORE.get('cfg_pub',{});
+  if (!cfg.guildId&&!pub.guildId) { toast('⚠ 請先填入 Discord 伺服器 ID 並儲存'); return; }
+  toast('測試訊息已記錄（需要後端 Workers API 實際發送）');
+}
+
+// ── 公告頻道 ────────────────────────────────────────────────────
+function loadAnnChannels() {
+  var sel=document.getElementById('ann-channel'); if(!sel) return;
+  var pub=STORE.get('cfg_pub',{}), raw=pub.channels||'';
+  sel.innerHTML='<option value="">— 選擇頻道 —</option>';
+  var lines=raw.split('\n').filter(function(l){return l.trim();});
+  lines.forEach(function(line){
+    var parts=line.split(':');
+    var id=parts[0]&&parts[0].trim(), name=parts.slice(1).join(':').trim();
+    if(id&&name){var o=document.createElement('option');o.value=id;o.textContent='#'+name;sel.appendChild(o);}
+  });
+  if(!lines.length) sel.innerHTML='<option value="">— 請先在敏感設定填入頻道清單 —</option>';
+}
+
+// ── 公告發送 ────────────────────────────────────────────────────
+function sendAnnouncement() {
+  var channel=((document.getElementById('ann-channel')||{}).value||'');
+  var title=((document.getElementById('ann-title')||{}).value||'').trim();
+  var desc=((document.getElementById('ann-desc')||{}).value||'').trim();
+  var schedule=(document.getElementById('ann-schedule')||{}).value;
+  var color=((document.getElementById('ann-color')||{}).value||'#5865F2');
+  var footer=((document.getElementById('ann-footer')||{}).value||'');
+  if (!channel) { toast('⚠ 請選擇目標頻道'); return; }
+  if (!title&&!desc) { toast('⚠ 請填入公告標題或內容'); return; }
+  var record={id:Math.random().toString(36).slice(2,8),channel:channel,title:title,
+    desc:desc,color:color,footer:footer,time:new Date().toLocaleString('zh-TW'),
+    scheduled:!!schedule,scheduleTime:schedule||null};
+  STORE.push('ann_history',record,50);
+  renderAnnHistory();
+  toast(schedule?'公告已排程：'+new Date(schedule).toLocaleString('zh-TW'):'公告已記錄 ✓（需 Bot Token 才能實際發送）');
+  writeAuditLog('DISCORD_MESSAGE_SEND','CHANNEL',channel,'成功',{title:title});
+}
+
+function renderAnnHistory() {
+  var el=document.getElementById('ann-history'); if(!el) return;
+  var history=STORE.get('ann_history',[]);
+  if(!history.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無公告紀錄</div>';return;}
+  el.innerHTML=history.slice(0,8).map(function(h){
+    return '<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:6px">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'
+      +'<div style="width:10px;height:10px;border-radius:2px;background:'+(h.color||'#5865F2')+';flex-shrink:0"></div>'
+      +'<div style="font-size:12px;font-weight:500;flex:1">'+(h.title||'（無標題）')+'</div></div>'
+      +'<div style="font-size:11px;color:var(--t3)">頻道：'+h.channel+' · '+h.time+(h.scheduled?' · 已排程':'')+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// ── Pterodactyl ─────────────────────────────────────────────────
+function pteroBind() {
+  var url=((document.getElementById('ptero-url')||{}).value||'').trim();
+  var key=((document.getElementById('ptero-key')||{}).value||'').trim();
+  var errEl=document.getElementById('ptero-bind-err'); if(errEl)errEl.style.display='none';
+  if(!url||!key){showPteroErr('請填入 Panel 網址與 API Key');return;}
+  if(!url.startsWith('https://')){showPteroErr('Panel 網址必須以 https:// 開頭');return;}
+  if(!key.startsWith('ptlc_')){showPteroErr('API Key 格式不正確（應以 ptlc_ 開頭）');return;}
+  var btn=document.getElementById('ptero-bind-btn'); if(btn){btn.textContent='驗證中...';btn.disabled=true;}
+  // Save binding
+  var servers=[
+    {id:'lls-survival',name:'LLS懶懶生存 - Survival',status:'running',players:0,maxPlayers:50},
+    {id:'lls-creative',name:'LLS懶懶生存 - Creative',status:'offline',players:0,maxPlayers:30}
+  ];
+  STORE.set('ptero_binding',{url:url,keyMasked:'ptlc_•••••••••••••••••••'+key.slice(-4),boundAt:new Date().toISOString(),servers:servers});
+  setTimeout(function(){
+    if(btn){btn.textContent='驗證並綁定';btn.disabled=false;}
+    APP.ptero.bound=true; APP.ptero.url=url; APP.ptero.servers=servers;
+    showPteroBound(); syncPteroServersToSelects();
+    writeAuditLog('SYSTEM_BINDING_CREATE','BINDING',url,'成功');
+    toast('Pterodactyl 綁定成功！找到 '+servers.length+' 台伺服器 ✓');
+    loadDashboardFull();
+  },1200);
+}
+
+function loadPteroBinding() {
+  var b=STORE.get('ptero_binding',null); if(!b) return;
+  APP.ptero.bound=true; APP.ptero.url=b.url; APP.ptero.servers=b.servers||[];
+  showPteroBound(); syncPteroServersToSelects();
+}
+
+function showPteroBound() {
+  var nb=document.getElementById('ptero-not-bound'); if(nb)nb.style.display='none';
+  var bs=document.getElementById('ptero-bound-status'); if(bs)bs.style.display='block';
+  var bm=document.getElementById('ptero-bound-msg'); if(bm)bm.textContent='已成功綁定 Pterodactyl Panel：'+APP.ptero.url;
+  var cc=document.getElementById('ptero-current-card'); if(cc)cc.style.display='block';
+  var um=document.getElementById('ptero-url-mask'); if(um)um.textContent=APP.ptero.url;
+  var km=document.getElementById('ptero-key-mask'); var b=STORE.get('ptero_binding',null); if(km&&b)km.textContent=b.keyMasked;
+  var ft=document.getElementById('ptero-form-title'); if(ft)ft.textContent='更新綁定';
+  renderPteroServers();
+}
+
+function renderPteroServers() {
+  var el=document.getElementById('ptero-servers'); if(!el)return;
+  if(!APP.ptero.servers.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">無可存取的伺服器</div>';return;}
+  el.innerHTML=APP.ptero.servers.map(function(s){
+    return '<div class="sr"><span class="dot '+(s.status==='running'?'dot-ok':'dot-off')+'"></span>'
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:500">'+s.name+'</div>'
+      +'<div style="font-size:11px;color:var(--t3)">ID: '+s.id+'</div></div>'
+      +'<span class="badge '+(s.status==='running'?'bok':'bmute')+'">'+(s.status==='running'?'運行中':'離線')+'</span></div>';
+  }).join('');
+}
+
+function pteroVerify() {
+  if(!APP.ptero.bound){toast('尚未綁定');return;}
+  toast('重新驗證成功 ✓（模擬）');
+  writeAuditLog('SYSTEM_BINDING_VERIFY','BINDING',APP.ptero.url,'成功');
+}
+
+function pteroDoBind_revoke() {
+  STORE.set('ptero_binding',null); APP.ptero.bound=false; APP.ptero.url=''; APP.ptero.servers=[];
+  var nb=document.getElementById('ptero-not-bound'); if(nb)nb.style.display='';
+  var bs=document.getElementById('ptero-bound-status'); if(bs)bs.style.display='none';
+  var cc=document.getElementById('ptero-current-card'); if(cc)cc.style.display='none';
+  var ps=document.getElementById('ptero-servers'); if(ps)ps.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">完成綁定後顯示伺服器列表</div>';
+  ['mc-srv-sel','mcs-srv-sel'].forEach(function(id){var s=document.getElementById(id);if(s)s.innerHTML='<option value="">— 請先綁定 Pterodactyl —</option>';});
+  toast('Pterodactyl 綁定已撤銷'); writeAuditLog('SYSTEM_BINDING_REVOKE','BINDING','—','成功'); loadDashboardFull();
+}
+
+// ── 白名單 ──────────────────────────────────────────────────────
+function _wlKey(){return APP.mc.selectedServer?'wl_'+APP.mc.selectedServer.id:null;}
+function getWhitelist(){var k=_wlKey();return k?STORE.get(k,[]):[];}
+function saveWhitelist(l){var k=_wlKey();if(k)STORE.set(k,l);}
+
+function renderWhitelistTable() {
+  var el=document.getElementById('mc-whitelist-list'); if(!el)return;
+  if(!APP.mc.selectedServer){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';return;}
+  var list=getWhitelist();
+  var s=((document.getElementById('wl-search')||{}).value||'').toLowerCase();
+  var rows=list.filter(function(p){return !s||p.name.toLowerCase().includes(s);});
+  if(!rows.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">白名單為空，點擊「新增」加入玩家</div>';return;}
+  el.innerHTML='<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增時間</th><th>新增者</th><th>操作</th></tr></thead><tbody>'
+    +rows.map(function(p){return '<tr><td><strong>'+p.name+'</strong></td><td style="color:var(--t3)">'+p.added+'</td><td style="color:var(--t3)">'+p.by+'</td>'
+      +'<td><button class="btn btn-sm btn-d" onclick="removeWlEntry(\''+p.name+'\')">移除</button></td></tr>';}).join('')
+    +'</tbody></table>';
+}
+
+function removeWlEntry(name) {
+  if(!confirm('確定要從白名單移除「'+name+'」嗎？'))return;
+  saveWhitelist(getWhitelist().filter(function(p){return p.name!==name;}));
+  renderWhitelistTable(); renderWlCfgList();
+  toast('已移除 '+name+' ✓'); writeAuditLog('MC_WHITELIST_REMOVE','PLAYER',name,'成功');
+}
+
+function execAddWhitelist() {
+  var name=((document.getElementById('wl-player-name')||{}).value||'').trim();
+  if(!name){toast('請填入玩家名稱');return;}
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  var list=getWhitelist();
+  if(list.some(function(p){return p.name.toLowerCase()===name.toLowerCase();})){toast('⚠ 此玩家已在白名單中');return;}
+  list.push({name:name,added:new Date().toLocaleDateString('zh-TW'),by:(APP.currentUser&&(APP.currentUser.displayName||APP.currentUser.email))||'—'});
+  saveWhitelist(list);
+  renderWhitelistTable(); renderWlCfgList();
+  closeM('add-whitelist'); if(document.getElementById('wl-player-name'))document.getElementById('wl-player-name').value='';
+  toast('已新增 '+name+' 至白名單 ✓'); writeAuditLog('MC_WHITELIST_ADD','PLAYER',name,'成功');
+}
+
+function wlAddPlayer() {
+  var name=((document.getElementById('wl-add-name')||{}).value||'').trim();
+  if(!name){toast('請輸入玩家名稱');return;}
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  var list=getWhitelist();
+  if(list.some(function(p){return p.name.toLowerCase()===name.toLowerCase();})){toast('⚠ 此玩家已在白名單中');return;}
+  list.push({name:name,added:new Date().toLocaleDateString('zh-TW'),by:(APP.currentUser&&(APP.currentUser.displayName||APP.currentUser.email))||'—'});
+  saveWhitelist(list);
+  if(document.getElementById('wl-add-name'))document.getElementById('wl-add-name').value='';
+  renderWhitelistTable(); renderWlCfgList();
+  toast('已新增 '+name+' ✓'); writeAuditLog('MC_WHITELIST_ADD','PLAYER',name,'成功');
+}
+
+function renderWlCfgList() {
+  var el=document.getElementById('wl-cfg-list'); if(!el)return;
+  var list=getWhitelist();
+  if(!list.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px 0">白名單為空</div>';return;}
+  el.innerHTML='<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增者</th><th>操作</th></tr></thead><tbody>'
+    +list.slice(0,15).map(function(p){return '<tr><td><strong>'+p.name+'</strong></td><td style="color:var(--t3)">'+p.by+'</td>'
+      +'<td><button class="btn btn-sm btn-d" onclick="removeWlEntry(\''+p.name+'\')">移除</button></td></tr>';}).join('')+'</tbody></table>';
+}
+
+// ── MC 封鎖名單 ─────────────────────────────────────────────────
+function _banKey(){return APP.mc.selectedServer?'mc_bans_'+APP.mc.selectedServer.id:null;}
+function getMcBans(){var k=_banKey();return k?STORE.get(k,[]):[];}
+function saveMcBans(l){var k=_banKey();if(k)STORE.set(k,l);}
+
+function renderMcBansTable() {
+  var el=document.getElementById('mc-bans-list'); if(!el)return;
+  if(!APP.mc.selectedServer){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';return;}
+  var list=getMcBans();
+  if(!list.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">封鎖名單為空</div>';return;}
+  el.innerHTML='<table class="tbl"><thead><tr><th>玩家名稱</th><th>原因</th><th>到期時間</th><th>封鎖者</th><th>操作</th></tr></thead><tbody>'
+    +list.map(function(b){return '<tr><td><strong>'+b.name+'</strong></td><td style="color:var(--t3)">'+b.reason+'</td>'
+      +'<td style="color:'+(b.expires?'var(--warn)':'var(--t3)')+'\">'+(b.expires||'永久')+'</td>'
+      +'<td style="color:var(--t3)">'+b.by+'</td>'
+      +'<td><button class="btn btn-sm btn-ok" onclick="removeMcBanEntry(\''+b.name+'\')">解除</button></td></tr>';}).join('')
+    +'</tbody></table>';
+}
+
+function removeMcBanEntry(name) {
+  if(!confirm('確定要解除封鎖「'+name+'」嗎？'))return;
+  saveMcBans(getMcBans().filter(function(b){return b.name!==name;}));
+  renderMcBansTable(); toast('已解除封鎖 '+name+' ✓'); writeAuditLog('MC_PLAYER_UNBAN','PLAYER',name,'成功');
+}
+
+function execMcBan() {
+  var name=((document.getElementById('mcb-name')||{}).value||'').trim();
+  var reason=((document.getElementById('mcb-reason')||{}).value||'').trim();
+  var expires=(document.getElementById('mcb-expires')||{}).value||null;
+  if(!name||!reason){toast('請填入玩家名稱與原因');return;}
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  var list=getMcBans();
+  if(list.some(function(b){return b.name.toLowerCase()===name.toLowerCase();})){toast('⚠ 此玩家已在封鎖名單中');return;}
+  list.push({name:name,reason:reason,expires:expires,by:(APP.currentUser&&(APP.currentUser.displayName||APP.currentUser.email))||'—',bannedAt:new Date().toISOString()});
+  saveMcBans(list); renderMcBansTable();
+  closeM('mc-ban-player');
+  if(document.getElementById('mcb-name'))document.getElementById('mcb-name').value='';
+  if(document.getElementById('mcb-reason'))document.getElementById('mcb-reason').value='';
+  toast('已封鎖玩家 '+name+' ✓'); writeAuditLog('MC_PLAYER_BAN','PLAYER',name,'成功',{reason:reason});
+}
+
+// ── 備份 ────────────────────────────────────────────────────────
+function _backupKey(){return APP.mc.selectedServer?'mc_backups_'+APP.mc.selectedServer.id:null;}
+
+function renderBackupTable() {
+  var el=document.getElementById('mc-backup-list'); if(!el)return;
+  if(!APP.mc.selectedServer){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';return;}
+  var k=_backupKey(); var list=k?STORE.get(k,[]):[];
+  if(!list.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">尚無備份，點擊「立即建立備份」建立第一個</div>';return;}
+  el.innerHTML='<table class="tbl"><thead><tr><th>備份名稱</th><th>建立時間</th><th>大小</th><th>狀態</th><th>操作</th></tr></thead><tbody>'
+    +list.map(function(b){return '<tr><td><strong>'+b.name+'</strong></td><td style="color:var(--t3)">'+b.time+'</td><td>'+b.size+'</td>'
+      +'<td><span class="badge '+(b.ok?'bok':'bdanger')+'">'+(b.ok?'完成':'失敗')+'</span></td>'
+      +'<td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-d" onclick="confirmAction(\'restore\')">還原</button>'
+      +'<button class="btn btn-sm" onclick="deleteBackupEntry(\''+b.name+'\')">刪除</button></div></td></tr>';}).join('')+'</tbody></table>';
+}
+
+function mcCreateBackup() {
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  var k=_backupKey(); if(!k)return;
+  var name='backup-'+new Date().toISOString().slice(0,16).replace('T','-').replace(':','');
+  var list=STORE.get(k,[]);
+  list.unshift({name:name,time:new Date().toLocaleString('zh-TW'),size:Math.round(500+Math.random()*2000)+' MB',ok:true});
+  STORE.set(k,list); renderBackupTable();
+  toast('備份已建立：'+name+' ✓'); writeAuditLog('MC_BACKUP_CREATE','SERVER',APP.mc.selectedServer.name,'成功');
+}
+
+function deleteBackupEntry(name) {
+  if(!confirm('確定要刪除備份「'+name+'」嗎？'))return;
+  var k=_backupKey(); var list=STORE.get(k,[]).filter(function(b){return b.name!==name;});
+  STORE.set(k,list); renderBackupTable(); toast('備份已刪除 ✓');
+}
+
+// ── 維護模式 ────────────────────────────────────────────────────
+function toggleMaintenance() {
+  var srv=APP.mc.selectedServer; if(!srv){toast('請先選擇伺服器');return;}
+  var k='maintenance_'+srv.id; var on=!STORE.get(k,false); STORE.set(k,on);
+  updateMaintenanceUI(on);
+  var msg=((document.getElementById('maint-msg')||{}).value||'').trim();
+  toast('維護模式已'+(on?'開啟':'關閉')+(msg?'：'+msg:'')+' ✓');
+  writeAuditLog(on?'MC_MAINTENANCE_ON':'MC_MAINTENANCE_OFF','SERVER',srv.name,'成功');
+}
+function updateMaintenanceUI(on) {
+  var dot=document.getElementById('maint-dot'); var lbl=document.getElementById('maint-lbl'); var btn=document.getElementById('maint-toggle-btn');
+  if(dot)dot.className='dot '+(on?'dot-warn':'dot-off');
+  if(lbl){lbl.textContent='維護模式：'+(on?'開啟中':'關閉');lbl.style.color=on?'var(--warn)':'var(--t1)';}
+  if(btn){btn.textContent=on?'關閉維護模式':'開啟維護模式';btn.className=on?'btn btn-sm btn-ok':'btn btn-p btn-sm';}
+}
+function loadMaintenanceState() {
+  var srv=APP.mc.selectedServer; if(!srv)return;
+  updateMaintenanceUI(STORE.get('maintenance_'+srv.id,false));
+}
+
+// ── 伺服器設定 ──────────────────────────────────────────────────
+function loadMcSettings() {
+  var id=(document.getElementById('mcs-srv-sel')||{}).value;
+  var el=document.getElementById('mcs-basic-form'); if(!el)return;
+  if(!id){el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>';return;}
+  var srv=APP.ptero.servers.find(function(s){return s.id===id;});
+  var saved=STORE.get('mc_settings_'+id,{});
+  var motd=saved.motd||(srv?srv.name:''), maxP=saved.maxPlayers||(srv?srv.maxPlayers:50);
+  var diff=saved.difficulty||'Normal', mode=saved.gameMode||'Survival';
+  el.innerHTML='<div class="fg"><label class="fl">伺服器描述 (MOTD)</label><input class="fi" id="mcs-motd" value="'+motd+'"></div>'
+    +'<div class="frow"><div class="fg"><label class="fl">最大玩家數</label><input class="fi" type="number" id="mcs-maxplayers" value="'+maxP+'"></div>'
+    +'<div class="fg"><label class="fl">遊戲難度</label><select class="fsel" id="mcs-diff">'
+    +['Easy','Normal','Hard'].map(function(d){return '<option'+(d===diff?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="fg"><label class="fl">預設遊戲模式</label><select class="fsel" id="mcs-mode">'
+    +['Survival','Creative','Adventure'].map(function(m){return '<option'+(m===mode?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>強制白名單</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>啟用 PVP</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>正版驗證</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
+    +'</div><button class="btn btn-p btn-sm" onclick="saveMcBasic()">儲存設定</button>';
+}
+function saveMcBasic() {
+  var id=(document.getElementById('mcs-srv-sel')||{}).value; if(!id){toast('請先選擇伺服器');return;}
+  STORE.set('mc_settings_'+id,{
+    motd:((document.getElementById('mcs-motd')||{}).value||''),
+    maxPlayers:((document.getElementById('mcs-maxplayers')||{}).value||'50'),
+    difficulty:((document.getElementById('mcs-diff')||{}).value||'Normal'),
+    gameMode:((document.getElementById('mcs-mode')||{}).value||'Survival')
+  });
+  toast('伺服器設定已儲存 ✓'); writeAuditLog('MC_CONFIG_UPDATE','SERVER',id,'成功');
+}
+
+// ── Discord 操作 ────────────────────────────────────────────────
+function execTimeout() {
+  var reason=((document.getElementById('tm-reason')||{}).value||'').trim();
+  if(!reason||reason.length<10){toast('⚠ 原因至少 10 個字');return;}
+  var dur=(document.getElementById('tm-dur')||{}).value||'30 分鐘';
+  closeM('timeout'); if(document.getElementById('tm-reason'))document.getElementById('tm-reason').value='';
+  toast('已對成員禁言 '+dur+' ✓（需要 Bot Token 才能實際執行）');
+  writeAuditLog('DISCORD_MEMBER_TIMEOUT','USER','成員','成功',{duration:dur,reason:reason});
+}
+function execKick() {
+  var reason=((document.getElementById('kk-reason')||{}).value||'').trim();
+  if(!reason){toast('請填入原因');return;}
+  closeM('kick'); if(document.getElementById('kk-reason'))document.getElementById('kk-reason').value='';
+  toast('已踢出成員 ✓（需要 Bot Token 才能實際執行）');
+  writeAuditLog('DISCORD_MEMBER_KICK','USER','成員','成功',{reason:reason});
+}
+function execBan() {
+  var reason=((document.getElementById('ban-reason')||{}).value||'').trim();
+  if(!reason){toast('請填入原因');return;}
+  closeM('ban'); if(document.getElementById('ban-reason'))document.getElementById('ban-reason').value='';
+  toast('已封鎖成員 ✓（需要 Bot Token 才能實際執行）');
+  writeAuditLog('DISCORD_MEMBER_BAN','USER','成員','成功',{reason:reason});
+}
+function execMcKick() {
+  var reason=((document.getElementById('mck-reason')||{}).value||'').trim();
+  var name=(document.getElementById('mck-name')||{}).value||'';
+  if(!reason){toast('請填入原因');return;}
+  closeM('mc-kick'); if(document.getElementById('mck-reason'))document.getElementById('mck-reason').value='';
+  toast('已踢出玩家 '+name+' ✓'); writeAuditLog('MC_PLAYER_KICK','PLAYER',name,'成功',{reason:reason});
+}
+function execBroadcast() {
+  var msg=((document.getElementById('bc-msg')||{}).value||'').trim();
+  if(!msg){toast('請填入廣播訊息');return;}
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  closeM('mc-broadcast'); if(document.getElementById('bc-msg'))document.getElementById('bc-msg').value='';
+  toast('廣播訊息已記錄 ✓（需要 Pterodactyl API 才能實際發送）');
+  writeAuditLog('MC_BROADCAST','SERVER',APP.mc.selectedServer.name,'成功');
+}
+
+// ── Dashboard ────────────────────────────────────────────────────
+function renderDashLogs() {
+  var logEl=document.getElementById('dash-logs'); if(!logEl)return;
+  var logs=STORE.get('audit_logs',[]);
+  if(!logs.length){logEl.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄。執行操作後將自動顯示。</div>';return;}
+  logEl.innerHTML=logs.slice(0,5).map(function(l){
+    var t=new Date(l.timestamp).toLocaleTimeString('zh-TW',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    var bad=l.result==='失敗'; var code=l.action.slice(-3);
+    return '<div class="lr"><div class="lt">'+t+'</div>'
+      +'<div class="li '+(bad?'li-d':'li-ok')+'">'+code+'</div>'
+      +'<div class="lb"><div class="la">'+l.action+' — '+l.targetName+'</div>'
+      +'<div class="lm">'+l.actor+' · '+(bad?'<span style="color:var(--danger)">'+l.result+'</span>':l.result)+'</div></div></div>';
+  }).join('');
+}
+
+function loadDashboardFull() {
+  var logs=STORE.get('audit_logs',[]); var opsEl=document.getElementById('s-ops'); if(opsEl)opsEl.textContent=logs.length;
+  var srvEl=document.getElementById('dash-servers');
+  if(srvEl){
+    if(!APP.ptero.bound||!APP.ptero.servers.length){
+      srvEl.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態。<br><br><button class="btn btn-sm" onclick="pg(\'pterodactyl\',\'Pterodactyl 綁定\')">前往綁定</button></div>';
+    } else {
+      srvEl.innerHTML=APP.ptero.servers.map(function(s){
+        var running=s.status==='running';
+        return '<div class="sr"><span class="dot '+(running?'dot-ok':'dot-off')+'"></span>'
+          +'<div style="flex:1"><div style="font-size:13px;font-weight:500">'+s.name+'</div>'
+          +'<div style="font-size:11px;color:var(--t3)">'+(running?s.players+'/'+s.maxPlayers+' 玩家':'離線')+'</div></div>'
+          +(running?'<button class="btn btn-sm btn-d" onclick="confirmAction(\'stop\')">停止</button><button class="btn btn-sm" onclick="confirmAction(\'restart\')" style="margin-left:4px">重啟</button>'
+          :'<button class="btn btn-sm btn-p" onclick="mcPower(\'start\')">啟動</button>')+'</div>';
+      }).join('');
+    }
+  }
+  var dcEl=document.getElementById('dash-discord');
+  if(dcEl){
+    var botOk=STORE.get('cfg_bot_ok',false);
+    if(!botOk){
+      dcEl.innerHTML='<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot Token 設定後顯示 Discord 摘要。<br><br><button class="btn btn-sm" onclick="pg(\'sensitive\',\'敏感設定\')">前往設定</button></div>';
+    } else {
+      dcEl.innerHTML='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2)"><span class="dot dot-ok"></span>Bot Token 已設定</div>';
+    }
+  }
+  renderDashLogs();
+}
+
+// ── 系統狀態頁 ──────────────────────────────────────────────────
+function renderStatusPage() {
+  var botOk=STORE.get('cfg_bot_ok',false);
+  var dot=document.getElementById('st-bot-dot'); var lbl=document.getElementById('st-bot-lbl');
+  if(dot)dot.className='dot '+(botOk?'dot-ok':'dot-off');
+  if(lbl){lbl.textContent=botOk?'Bot Token 已設定':'尚未設定';lbl.style.color=botOk?'var(--ok)':'var(--t2)';}
+  var tbody=document.getElementById('st-ptero-tbody'); if(!tbody)return;
+  if(!APP.ptero.bound){
+    tbody.innerHTML='<tr><td colspan="5" style="color:var(--t3);padding:16px;text-align:center">尚未綁定 Pterodactyl Panel</td></tr>';
+  } else {
+    tbody.innerHTML='<tr><td>'+(APP.currentUser&&(APP.currentUser.displayName||APP.currentUser.email)||'—')+'</td>'
+      +'<td style="font-size:12px;color:var(--t3)">'+APP.ptero.url+'</td>'
+      +'<td style="color:var(--ok)">'+new Date().toLocaleTimeString('zh-TW',{hour12:false})+'</td>'
+      +'<td>'+APP.ptero.servers.length+'</td><td><span class="badge bok">正常</span></td></tr>';
+  }
+}
+
+// ── 身分組選取 ──────────────────────────────────────────────────
+function selectRole(el,name) {
+  document.querySelectorAll('#role-list .card').forEach(function(c){c.style.borderColor='';});
+  el.style.borderColor='var(--acc)';
+  var t=document.getElementById('role-perm-title'); if(t)t.textContent=name+' 許可操作';
+}
+
+// ── Confirm 對話框 ───────────────────────────────────────────────
+var CONFIRMS={
+  stop:{title:'確認停止伺服器',sub:'此操作將強制斷開所有在線玩家連線',alert:'請先通知玩家或開啟維護模式',label:'輸入伺服器名稱以確認：',ph:'LLS懶懶生存 - Survival',cb:function(){if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}mcPower('stop');}},
+  restart:{title:'確認重啟伺服器',sub:'重啟期間玩家將暫時斷線（約 30–60 秒）',alert:'建議先廣播通知玩家',label:'輸入「CONFIRM RESTART」以確認',ph:'CONFIRM RESTART',cb:function(){if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}mcPower('restart');}},
+  unbind:{title:'撤銷 Pterodactyl 綁定',sub:'撤銷後將無法控制任何 Minecraft 伺服器',alert:'此操作不可逆，需重新綁定才能恢復',label:'輸入「CONFIRM UNBIND」以確認',ph:'CONFIRM UNBIND',cb:function(){pteroDoBind_revoke();}},
+  restore:{title:'確認還原備份',sub:'還原後伺服器資料將回到備份時間點',alert:'此操作不可逆！當前資料將被備份覆蓋',label:'輸入「CONFIRM RESTORE」以確認',ph:'CONFIRM RESTORE',cb:function(){toast('備份還原任務已建立（需要 Pterodactyl API）');writeAuditLog('MC_BACKUP_RESTORE','SERVER','—','成功');}},
+  'emergency-lock':{title:'開啟緊急鎖定',sub:'所有非擁有者帳號的 API 請求將立即被拒絕',alert:'此操作將立即影響所有在線管理員',label:'輸入「CONFIRM LOCK」以確認',ph:'CONFIRM LOCK',cb:function(){STORE.set('emergency_lock',true);toast('緊急鎖定已開啟 ✓');writeAuditLog('SECURITY_EMERGENCY_LOCK','SETTING','系統','成功');}}
+};
+function confirmAction(type) {
+  var c=CONFIRMS[type]; if(!c)return;
+  var t=document.getElementById('cf-title');if(t)t.textContent=c.title;
+  var s=document.getElementById('cf-sub');if(s)s.textContent=c.sub;
+  var a=document.getElementById('cf-alert');if(a)a.textContent=c.alert;
+  var l=document.getElementById('cf-label');if(l)l.textContent=c.label;
+  var i=document.getElementById('cf-input');if(i){i.placeholder=c.ph;i.value='';}
+  var b=document.getElementById('cf-btn');if(b)b.onclick=function(){closeM('confirm');c.cb();};
+  openM('confirm');
+}
+
+// ── 清除警示 ────────────────────────────────────────────────────
+function clearAllAlerts() {
+  var al=document.getElementById('alert-list');
+  if(al)al.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">所有警示已確認</div>';
+  var b=document.getElementById('alert-badge');if(b)b.textContent='0';
+  STORE.set('alerts_cleared',true); toast('所有警示已確認 ✓');
+}
+
+// ── MC 電源控制 ─────────────────────────────────────────────────
+function mcPower(signal) {
+  if(!APP.mc.selectedServer){toast('請先選擇伺服器');return;}
+  var actions={start:'啟動',stop:'停止',restart:'重啟',kill:'強制終止'};
+  toast('已發送 '+actions[signal]+' 指令（需要 Pterodactyl API 才能實際控制）');
+  writeAuditLog('MC_SERVER_'+signal.toUpperCase(),'SERVER',APP.mc.selectedServer.name,'成功');
+}
+
+// ── DC Roles/Bans (placeholder) ─────────────────────────────────
+function renderDcRoles() {
+  var el=document.getElementById('dc-roles-list'); if(!el)return;
+  el.innerHTML='<div class="al al-info" style="margin-bottom:12px;font-size:12px">角色資料需 Discord Bot 連線後取得。</div>';
+}
+function renderDcBans() {
+  var el=document.getElementById('dc-bans-list'); if(!el)return;
+  el.innerHTML='<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">Discord 封鎖名單需 Bot 連線後取得。</div>';
+}
+function loadDCMembers() {}
+
+// ── initApp（唯一版本，從 STORE 載入所有持久化資料）─────────────
+function initApp() {
+  // 載入持久化資料
+  APP.audit.logs=STORE.get('audit_logs',[]);
+  loadPteroBinding();
+  loadSensitiveSettings();
+  ensureOwnerAdmin();
+
+  // 渲染
   loadDashboardFull();
-  checkBotStatus();
-});
+  renderAuditTable();
+  renderUsers();
+  loadAnnChannels();
+  renderAnnHistory();
+  loadTemplate();
 
-// ─── postMessage bridge (React parent → iframe) ──────────────
+  // 日期篩選器
+  var today=new Date().toISOString().split('T')[0];
+  var week=new Date(Date.now()-7*86400000).toISOString().split('T')[0];
+  var af=document.getElementById('audit-from'); if(af)af.value=week;
+  var at=document.getElementById('audit-to'); if(at)at.value=today;
+  var opsEl=document.getElementById('s-ops'); if(opsEl)opsEl.textContent=APP.audit.logs.length;
+}
+
+// ── postMessage bridge ──────────────────────────────────────────
 window.addEventListener('message', function(event) {
   if (!event.data || !event.data.type) return;
-  // PING: parent 在問 iframe 是否就緒，回覆 IFRAME_READY
   if (event.data.type === 'PING') {
     window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
     return;
@@ -2135,1102 +2251,18 @@ window.addEventListener('message', function(event) {
   }
 });
 
-// Signal to parent that iframe is ready - use multiple attempts for reliability
-function signalReady() {
-  window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-}
-signalReady();
-setTimeout(signalReady, 200);
-setTimeout(signalReady, 600);
+// 主動通知 parent 已就緒（多次確保可靠性）
+function _signalReady() { window.parent.postMessage({ type: 'IFRAME_READY' }, '*'); }
+_signalReady();
+setTimeout(_signalReady, 300);
+setTimeout(_signalReady, 800);
 
-// Auto-init fallback: if parent never responds within 1 second
+// 備援：若 1.5 秒後仍無 parent 回應（直接開啟 HTML 檔案時）
 setTimeout(function() {
   if (!APP.currentUser) {
     doLogin({ email: 'direct@lls.dev', displayName: '管理員', role: 'owner' });
   }
-}, 1000);
-
-
-
-// ════════════════════════════════════════════════════════════════
-// 持久化儲存層 (localStorage)
-// 所有設定、管理員列表、操作紀錄都儲存在 localStorage
-// key prefix: lls_panel_
-// ════════════════════════════════════════════════════════════════
-
-const STORE = {
-  _key: function(k) { return 'lls_panel_' + k; },
-
-  get: function(k, def) {
-    try {
-      const v = localStorage.getItem(this._key(k));
-      return v !== null ? JSON.parse(v) : def;
-    } catch { return def; }
-  },
-
-  set: function(k, v) {
-    try { localStorage.setItem(this._key(k), JSON.stringify(v)); } catch {}
-  },
-
-  push: function(k, item, maxItems) {
-    const arr = this.get(k, []);
-    arr.unshift(item);
-    if (maxItems && arr.length > maxItems) arr.length = maxItems;
-    this.set(k, arr);
-    return arr;
-  },
-
-  remove: function(k, predicate) {
-    const arr = this.get(k, []);
-    const next = arr.filter(function(x) { return !predicate(x); });
-    this.set(k, next);
-    return next;
-  },
-};
-
-// ════════════════════════════════════════════════════════════════
-// 覆寫所有有副作用的函式，讓它們真正儲存資料
-// ════════════════════════════════════════════════════════════════
-
-// ── 審計日誌（真正寫入 localStorage）────────────────────────────
-function writeAuditLog(action, targetType, targetName, result, params) {
-  const log = {
-    id: Math.random().toString(36).slice(2, 10),
-    timestamp: new Date().toISOString(),
-    actor: (APP.currentUser && (APP.currentUser.displayName || APP.currentUser.email)) || '未知',
-    actorRole: '最高擁有者',
-    action: action,
-    targetType: targetType || '—',
-    targetName: targetName || '—',
-    result: result || '成功',
-    params: params || {},
-  };
-
-  // 寫入 localStorage（最多保留 500 筆）
-  STORE.push('audit_logs', log, 500);
-
-  // 更新 APP 狀態
-  APP.audit.logs = STORE.get('audit_logs', []);
-  const opsEl = document.getElementById('s-ops');
-  if (opsEl) opsEl.textContent = APP.audit.logs.length;
-
-  // 如果操作紀錄頁面正在顯示，即時更新
-  const auditPage = document.getElementById('page-audit');
-  if (auditPage && auditPage.classList.contains('active')) {
-    renderAuditTable();
-  }
-
-  // 即時更新 dashboard 日誌
-  const dashPage = document.getElementById('page-dashboard');
-  if (dashPage && dashPage.classList.contains('active')) {
-    renderDashLogs();
-  }
-}
-
-// ── 載入審計日誌 ─────────────────────────────────────────────────
-function loadAuditLogs() {
-  APP.audit.logs = STORE.get('audit_logs', []);
-  renderAuditTable();
-}
-
-// ── 渲染審計日誌表格 ─────────────────────────────────────────────
-function renderAuditTable() {
-  const tbody = document.getElementById('audit-tbody');
-  if (!tbody) return;
-
-  const logs = APP.audit.logs;
-  if (!logs.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無操作紀錄</td></tr>';
-    const countEl = document.getElementById('audit-count');
-    if (countEl) countEl.textContent = '0 筆紀錄';
-    return;
-  }
-
-  // 篩選
-  const catFilter    = (document.getElementById('audit-cat') || {}).value    || '';
-  const resultFilter = (document.getElementById('audit-result') || {}).value || '';
-  const fromDate     = (document.getElementById('audit-from') || {}).value   || '';
-  const toDate       = (document.getElementById('audit-to') || {}).value     || '';
-
-  let filtered = logs.filter(function(l) {
-    if (catFilter    && !l.action.startsWith(catFilter)) return false;
-    if (resultFilter && l.result !== resultFilter)        return false;
-    if (fromDate     && l.timestamp.slice(0, 10) < fromDate) return false;
-    if (toDate       && l.timestamp.slice(0, 10) > toDate)   return false;
-    return true;
-  });
-
-  const perPage = APP.audit.perPage || 20;
-  const page    = APP.audit.page    || 0;
-  const start   = page * perPage;
-  const slice   = filtered.slice(start, start + perPage);
-
-  const countEl = document.getElementById('audit-count');
-  if (countEl) countEl.textContent = '顯示 ' + (start + 1) + '–' + Math.min(start + perPage, filtered.length) + ' / 共 ' + filtered.length + ' 筆';
-
-  tbody.innerHTML = slice.map(function(l) {
-    const t   = new Date(l.timestamp).toLocaleTimeString('zh-TW', { hour12: false });
-    const bad = l.result === '失敗';
-    return '<tr>'
-      + '<td style="font-family:monospace;font-size:11px;color:var(--t3)">' + t + '</td>'
-      + '<td><div style="font-size:12px;font-weight:500">' + l.actor + '</div><div style="font-size:10px;color:var(--t3)">' + l.actorRole + '</div></td>'
-      + '<td style="font-size:12px">' + l.action + '</td>'
-      + '<td><span class="badge bmute" style="font-size:10px">' + l.targetType + '</span> ' + l.targetName + '</td>'
-      + '<td><span class="badge ' + (bad ? 'bdanger' : 'bok') + '">' + l.result + '</span></td>'
-      + '<td><button class="btn btn-sm btn-ghost" onclick="showLogDetail('' + l.id + '')">詳情</button></td>'
-      + '</tr>';
-  }).join('');
-}
-
-function auditPage(dir) {
-  APP.audit.page = Math.max(0, (APP.audit.page || 0) + dir);
-  renderAuditTable();
-}
-
-function showLogDetail(id) {
-  const log = APP.audit.logs.find(function(l) { return l.id === id; });
-  if (!log) { toast('找不到此紀錄'); return; }
-  const detail = [
-    'Log ID：' + log.id,
-    '時間：'   + new Date(log.timestamp).toLocaleString('zh-TW'),
-    '執行者：' + log.actor + ' (' + log.actorRole + ')',
-    '操作：'   + log.action,
-    '目標：'   + log.targetType + ' ' + log.targetName,
-    '結果：'   + log.result,
-    Object.keys(log.params).length ? '參數：' + JSON.stringify(log.params) : '',
-  ].filter(Boolean).join('\n');
-  alert(detail);
-}
-
-function exportAudit() {
-  const logs = APP.audit.logs;
-  if (!logs.length) { toast('尚無操作紀錄可以匯出'); return; }
-  const headers = ['時間', '執行者', '身分組', '操作', '目標類型', '目標名稱', '結果'];
-  const rows = logs.map(function(l) {
-    return [new Date(l.timestamp).toLocaleString('zh-TW'), l.actor, l.actorRole, l.action, l.targetType, l.targetName, l.result];
-  });
-  const csv = [headers].concat(rows).map(function(r) { return r.join(','); }).join('\n');
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'lls-audit-' + new Date().toISOString().slice(0, 10) + '.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('審計日誌已匯出（' + logs.length + ' 筆）');
-}
-
-// ── 管理員列表（真正儲存）───────────────────────────────────────
-const ROLE_LABELS = {
-  'owner':         '最高擁有者',
-  'super-admin':   '超級管理員',
-  'discord-admin': 'Discord 管理員',
-  'mc-admin':      'Minecraft 管理員',
-  'auditor':       '審計員',
-  'viewer':        '觀察員',
-};
-const ROLE_BADGE = {
-  'owner':         'bdanger',
-  'super-admin':   'bwarn',
-  'discord-admin': 'bacc',
-  'mc-admin':      'binfo',
-  'auditor':       'bmute',
-  'viewer':        'bmute',
-};
-
-function getAdmins() {
-  return STORE.get('admins', []);
-}
-
-function saveAdmins(list) {
-  STORE.set('admins', list);
-}
-
-function ensureOwnerAdmin() {
-  // 確保 Owner 永遠在管理員列表裡
-  if (!APP.currentUser) return;
-  const list = getAdmins();
-  const exists = list.some(function(a) { return a.uid === APP.currentUser.uid; });
-  if (!exists) {
-    list.unshift({
-      uid:       APP.currentUser.uid || 'owner',
-      email:     APP.currentUser.email,
-      name:      APP.currentUser.displayName || APP.currentUser.email,
-      role:      'owner',
-      created:   new Date().toLocaleDateString('zh-TW'),
-      lastLogin: new Date().toLocaleString('zh-TW'),
-      status:    'active',
-    });
-    saveAdmins(list);
-  } else {
-    // 更新最後登入時間
-    list.forEach(function(a) {
-      if (a.uid === APP.currentUser.uid) {
-        a.lastLogin = new Date().toLocaleString('zh-TW');
-      }
-    });
-    saveAdmins(list);
-  }
-}
-
-function renderUsers() {
-  const tbody = document.getElementById('users-tbody');
-  if (!tbody) return;
-  const admins = getAdmins();
-  if (!admins.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">尚無管理員記錄</td></tr>';
-    return;
-  }
-  tbody.innerHTML = admins.map(function(a) {
-    const badge  = ROLE_BADGE[a.role]  || 'bmute';
-    const label  = ROLE_LABELS[a.role] || a.role;
-    const isOwner = a.role === 'owner';
-    const statusBadge = a.status === 'active' ? '<span class="badge bok">正常</span>' : '<span class="badge bwarn">停用中</span>';
-    const actions = isOwner
-      ? '<span style="font-size:12px;color:var(--t3)">不可修改</span>'
-      : '<div style="display:flex;gap:4px">'
-        + '<button class="btn btn-sm" onclick="showAdminDetail('' + a.uid + '')">詳情</button>'
-        + (a.status === 'active'
-            ? '<button class="btn btn-sm btn-d" onclick="toggleAdmin('' + a.uid + '','disable')">停用</button>'
-            : '<button class="btn btn-sm btn-p" onclick="toggleAdmin('' + a.uid + '','enable')">啟用</button>')
-        + '</div>';
-    return '<tr>'
-      + '<td><div style="font-weight:500">' + a.name + '</div><div style="font-size:11px;color:var(--t3)">' + a.email + '</div></td>'
-      + '<td><span class="badge ' + badge + '">' + label + '</span></td>'
-      + '<td style="color:var(--t3)">' + a.created + '</td>'
-      + '<td style="color:var(--t3)">' + a.lastLogin + '</td>'
-      + '<td>' + statusBadge + '</td>'
-      + '<td>' + actions + '</td>'
-      + '</tr>';
-  }).join('');
-}
-
-function showAdminDetail(uid) {
-  const admin = getAdmins().find(function(a) { return a.uid === uid; });
-  if (!admin) return;
-  alert('帳號：' + admin.email + '\n身分組：' + (ROLE_LABELS[admin.role] || admin.role) + '\n建立：' + admin.created + '\n最後登入：' + admin.lastLogin);
-}
-
-function toggleAdmin(uid, action) {
-  const list = getAdmins();
-  list.forEach(function(a) {
-    if (a.uid === uid) a.status = action === 'enable' ? 'active' : 'disabled';
-  });
-  saveAdmins(list);
-  renderUsers();
-  toast('帳號狀態已更新');
-  writeAuditLog('SYSTEM_ADMIN_' + action.toUpperCase(), 'USER', uid, '成功');
-}
-
-function execAddAdmin() {
-  const email = (document.getElementById('aa-email') || {}).value.trim();
-  const role  = (document.getElementById('aa-role')  || {}).value;
-  const note  = (document.getElementById('aa-note')  || {}).value;
-  if (!email) { toast('請填入 Email'); return; }
-
-  const list = getAdmins();
-  if (list.some(function(a) { return a.email === email; })) {
-    toast('此 Email 的管理員已存在');
-    return;
-  }
-  const newAdmin = {
-    uid:       'uid_' + Date.now(),
-    email:     email,
-    name:      email.split('@')[0],
-    role:      role,
-    created:   new Date().toLocaleDateString('zh-TW'),
-    lastLogin: '尚未登入',
-    status:    'active',
-    note:      note,
-  };
-  list.push(newAdmin);
-  saveAdmins(list);
-  closeM('add-admin');
-  renderUsers();
-  toast('已新增管理員：' + email);
-  writeAuditLog('SYSTEM_ADMIN_CREATE', 'USER', email, '成功', { role: role });
-}
-
-// ── 敏感設定（真正儲存）──────────────────────────────────────────
-function saveSensitive(type) {
-  if (type === 'mgmt') {
-    const settings = {
-      guildId:  (document.getElementById('mgmt-guild-id')  || {}).value,
-      auditCh:  (document.getElementById('mgmt-audit-ch')  || {}).value,
-      alertCh:  (document.getElementById('mgmt-alert-ch')  || {}).value,
-      playerCh: (document.getElementById('mgmt-player-ch') || {}).value,
-    };
-    STORE.set('settings_mgmt', settings);
-    toast('管理伺服器設定已儲存 ✓');
-    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '管理伺服器', '成功');
-
-  } else if (type === 'pub') {
-    const settings = {
-      guildId:     (document.getElementById('pub-guild-id')     || {}).value,
-      announceCh:  (document.getElementById('pub-announce-ch')  || {}).value,
-      channels:    (document.getElementById('pub-channels')      || {}).value,
-    };
-    STORE.set('settings_pub', settings);
-    toast('玩家伺服器設定已儲存 ✓');
-    loadAnnChannels();
-    writeAuditLog('SECURITY_AUDIT_CHANNEL', 'SETTING', '玩家伺服器', '成功');
-
-  } else if (type === 'bot') {
-    const token = (document.getElementById('bot-token') || {}).value.trim();
-    if (!token) { toast('請填入 Bot Token'); return; }
-    // Token 加密存儲（生產環境應由 Workers 處理）
-    STORE.set('settings_bot_configured', true);
-    if (document.getElementById('bot-token')) document.getElementById('bot-token').value = '';
-    toast('Bot Token 已更新 ✓ Bot 重新連線中...');
-    setTimeout(function() { APP.settings.bot.connected = true; checkBotStatus(); }, 1500);
-    writeAuditLog('SECURITY_SENSITIVE_UPDATE', 'SETTING', 'Bot Token', '成功');
-  }
-}
-
-function loadSensitiveSettings() {
-  const mgmt = STORE.get('settings_mgmt', {});
-  const pub  = STORE.get('settings_pub',  {});
-
-  const fields = {
-    'mgmt-guild-id':  mgmt.guildId,
-    'mgmt-audit-ch':  mgmt.auditCh,
-    'mgmt-alert-ch':  mgmt.alertCh,
-    'mgmt-player-ch': mgmt.playerCh,
-    'pub-guild-id':   pub.guildId,
-    'pub-announce-ch':pub.announceCh,
-    'pub-channels':   pub.channels,
-  };
-
-  Object.keys(fields).forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el && fields[id]) el.value = fields[id];
-  });
-
-  if (STORE.get('settings_bot_configured', false)) {
-    APP.settings.bot.connected = true;
-    checkBotStatus();
-  }
-}
-
-function checkBotStatus() {
-  const dot  = document.getElementById('bot-dot');
-  const text = document.getElementById('bot-status-text');
-  if (!dot || !text) return;
-  if (APP.settings.bot.connected) {
-    dot.className = 'dot dot-ok';
-    text.textContent = 'Bot 已連線 · 設定已儲存';
-    text.style.color = 'var(--ok)';
-  } else {
-    dot.className = 'dot dot-off';
-    text.textContent = 'Bot 尚未連線，請填入 Bot Token 並儲存';
-    text.style.color = 'var(--t2)';
-  }
-}
-
-function testChannel(label) {
-  const mgmt = STORE.get('settings_mgmt', {});
-  const pub  = STORE.get('settings_pub', {});
-  if (!mgmt.guildId && !pub.guildId) {
-    toast('⚠ 請先填入 Discord 伺服器 ID 並儲存');
-    return;
-  }
-  toast('測試訊息已準備發送到「' + label + '」（需要後端 API 連線才能實際發送）');
-}
-
-// ── 公告頻道載入（從設定讀取）──────────────────────────────────
-function loadAnnChannels() {
-  const sel = document.getElementById('ann-channel');
-  if (!sel) return;
-  const pub  = STORE.get('settings_pub', {});
-  const raw  = pub.channels || '';
-  sel.innerHTML = '<option value="">— 選擇頻道 —</option>';
-  const lines = raw.split('\n').filter(function(l) { return l.trim(); });
-  lines.forEach(function(line) {
-    const parts = line.split(':');
-    const id    = parts[0] && parts[0].trim();
-    const name  = parts[1] && parts[1].trim();
-    if (id && name) {
-      const o    = document.createElement('option');
-      o.value    = id;
-      o.textContent = '#' + name;
-      sel.appendChild(o);
-    }
-  });
-  if (!lines.length) {
-    sel.innerHTML = '<option value="">— 請先在敏感設定填入頻道清單 —</option>';
-  }
-}
-
-// ── 公告發送（記錄歷史）─────────────────────────────────────────
-function sendAnnouncement() {
-  const channel  = (document.getElementById('ann-channel')  || {}).value;
-  const title    = ((document.getElementById('ann-title')   || {}).value || '').trim();
-  const desc     = ((document.getElementById('ann-desc')    || {}).value || '').trim();
-  const schedule = (document.getElementById('ann-schedule') || {}).value;
-  const color    = (document.getElementById('ann-color')    || {}).value || '#5865F2';
-  const footer   = (document.getElementById('ann-footer')   || {}).value || '';
-
-  if (!channel) { toast('⚠ 請選擇目標頻道'); return; }
-  if (!title && !desc) { toast('⚠ 請填入公告標題或內容'); return; }
-
-  const record = {
-    id:        Math.random().toString(36).slice(2, 8),
-    channel:   channel,
-    title:     title,
-    desc:      desc,
-    color:     color,
-    footer:    footer,
-    time:      new Date().toLocaleString('zh-TW'),
-    scheduled: !!schedule,
-    scheduleTime: schedule || null,
-  };
-
-  STORE.push('ann_history', record, 50);
-  renderAnnHistory();
-
-  if (schedule) {
-    toast('公告已排程：' + new Date(schedule).toLocaleString('zh-TW'));
-  } else {
-    toast('公告已記錄（需要後端 API + Bot Token 才能實際發送到 Discord）');
-  }
-  writeAuditLog('DISCORD_MESSAGE_SEND', 'CHANNEL', channel, '成功', { title: title });
-}
-
-function renderAnnHistory() {
-  const el = document.getElementById('ann-history');
-  if (!el) return;
-  const history = STORE.get('ann_history', []);
-  if (!history.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無公告紀錄</div>';
-    return;
-  }
-  el.innerHTML = history.slice(0, 8).map(function(h) {
-    return '<div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:6px">'
-      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'
-      + '<div style="width:10px;height:10px;border-radius:2px;background:' + (h.color || '#5865F2') + ';flex-shrink:0"></div>'
-      + '<div style="font-size:12px;font-weight:500;flex:1">' + (h.title || '（無標題）') + '</div>'
-      + '</div>'
-      + '<div style="font-size:11px;color:var(--t3)">頻道：' + h.channel + ' · ' + h.time + (h.scheduled ? ' · 已排程' : '') + '</div>'
-      + '</div>';
-  }).join('');
-}
-
-// ── Pterodactyl 綁定（真正儲存）────────────────────────────────
-function pteroBind() {
-  const url = ((document.getElementById('ptero-url') || {}).value || '').trim();
-  const key = ((document.getElementById('ptero-key') || {}).value || '').trim();
-  const errEl = document.getElementById('ptero-bind-err');
-  if (errEl) errEl.style.display = 'none';
-
-  if (!url || !key) { showPteroErr('請填入 Panel 網址與 API Key'); return; }
-  if (!url.startsWith('https://')) { showPteroErr('Panel 網址必須以 https:// 開頭'); return; }
-  if (!key.startsWith('ptlc_')) { showPteroErr('API Key 格式不正確（應以 ptlc_ 開頭）'); return; }
-
-  const btn = document.getElementById('ptero-bind-btn');
-  if (btn) { btn.textContent = '驗證中...'; btn.disabled = true; }
-
-  // 儲存綁定資訊（生產環境應由 Workers 加密後儲存）
-  STORE.set('ptero_binding', {
-    url: url,
-    keyMasked: 'ptlc_•••••••••••••••••••••' + key.slice(-4),
-    boundAt: new Date().toISOString(),
-    servers: [
-      { id: 'lls-survival', name: 'LLS懶懶生存 - Survival', status: 'running', players: 0, maxPlayers: 50 },
-      { id: 'lls-creative', name: 'LLS懶懶生存 - Creative', status: 'offline', players: 0, maxPlayers: 30 },
-    ],
-  });
-
-  setTimeout(function() {
-    if (btn) { btn.textContent = '驗證並綁定'; btn.disabled = false; }
-    const binding = STORE.get('ptero_binding', null);
-    if (!binding) return;
-
-    APP.ptero.bound   = true;
-    APP.ptero.url     = binding.url;
-    APP.ptero.servers = binding.servers;
-
-    showPteroBound();
-    syncPteroServersToSelects();
-    writeAuditLog('SYSTEM_BINDING_CREATE', 'BINDING', url, '成功');
-    toast('Pterodactyl 綁定成功！找到 ' + binding.servers.length + ' 台伺服器 ✓');
-    loadDashboardFull();
-  }, 1200);
-}
-
-function loadPteroBinding() {
-  const binding = STORE.get('ptero_binding', null);
-  if (!binding) return;
-  APP.ptero.bound   = true;
-  APP.ptero.url     = binding.url;
-  APP.ptero.servers = binding.servers || [];
-  showPteroBound();
-  syncPteroServersToSelects();
-}
-
-function pteroDoBind_revoke() {
-  STORE.set('ptero_binding', null);
-  APP.ptero.bound   = false;
-  APP.ptero.url     = '';
-  APP.ptero.servers = [];
-  document.getElementById('ptero-not-bound').style.display  = '';
-  document.getElementById('ptero-bound-status').style.display = 'none';
-  document.getElementById('ptero-current-card').style.display = 'none';
-  document.getElementById('ptero-servers').innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">完成綁定後顯示伺服器列表</div>';
-  syncPteroSelects_clear();
-  toast('Pterodactyl 綁定已撤銷');
-  writeAuditLog('SYSTEM_BINDING_REVOKE', 'BINDING', '—', '成功');
-  loadDashboardFull();
-}
-
-function syncPteroSelects_clear() {
-  ['mc-srv-sel', 'mcs-srv-sel'].forEach(function(id) {
-    const sel = document.getElementById(id);
-    if (sel) sel.innerHTML = '<option value="">— 請先綁定 Pterodactyl —</option>';
-  });
-}
-
-// ── 白名單（真正儲存）───────────────────────────────────────────
-function getWlKey() {
-  const srv = APP.mc.selectedServer;
-  return srv ? 'wl_' + srv.id : null;
-}
-
-function getWhitelist() {
-  const key = getWlKey();
-  return key ? STORE.get(key, []) : [];
-}
-
-function saveWhitelist(list) {
-  const key = getWlKey();
-  if (key) STORE.set(key, list);
-}
-
-function renderWhitelistTable() {
-  const el = document.getElementById('mc-whitelist-list');
-  if (!el) return;
-  if (!APP.mc.selectedServer) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';
-    return;
-  }
-  const list   = getWhitelist();
-  const search = ((document.getElementById('wl-search') || {}).value || '').toLowerCase();
-  const rows   = list.filter(function(p) { return !search || p.name.toLowerCase().includes(search); });
-
-  if (!rows.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">白名單為空。點擊「新增」加入玩家。</div>';
-    return;
-  }
-  el.innerHTML = '<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增時間</th><th>新增者</th><th>操作</th></tr></thead><tbody>'
-    + rows.map(function(p) {
-      return '<tr><td><strong>' + p.name + '</strong></td>'
-        + '<td style="color:var(--t3)">' + p.added + '</td>'
-        + '<td style="color:var(--t3)">' + p.by + '</td>'
-        + '<td><button class="btn btn-sm btn-d" onclick="removeWlEntry('' + p.name + '')">移除</button></td></tr>';
-    }).join('')
-    + '</tbody></table>';
-}
-
-function removeWlEntry(name) {
-  if (!confirm('確定要從白名單移除玩家「' + name + '」嗎？')) return;
-  const list = getWhitelist().filter(function(p) { return p.name !== name; });
-  saveWhitelist(list);
-  renderWhitelistTable();
-  renderWlCfgList();
-  toast('已從白名單移除 ' + name);
-  writeAuditLog('MC_WHITELIST_REMOVE', 'PLAYER', name, '成功');
-}
-
-function execAddWhitelist() {
-  const name = ((document.getElementById('wl-player-name') || {}).value || '').trim();
-  if (!name) { toast('請填入玩家名稱'); return; }
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-
-  const list = getWhitelist();
-  if (list.some(function(p) { return p.name.toLowerCase() === name.toLowerCase(); })) {
-    toast('⚠ 此玩家已在白名單中'); return;
-  }
-  list.push({ name: name, added: new Date().toLocaleDateString('zh-TW'), by: (APP.currentUser && APP.currentUser.displayName) || '—' });
-  saveWhitelist(list);
-  renderWhitelistTable();
-  renderWlCfgList();
-  closeM('add-whitelist');
-  if (document.getElementById('wl-player-name')) document.getElementById('wl-player-name').value = '';
-  toast('已新增 ' + name + ' 至白名單 ✓');
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
-}
-
-function wlAddPlayer() {
-  const name = ((document.getElementById('wl-add-name') || {}).value || '').trim();
-  if (!name) { toast('請輸入玩家名稱'); return; }
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-
-  const list = getWhitelist();
-  if (list.some(function(p) { return p.name.toLowerCase() === name.toLowerCase(); })) {
-    toast('⚠ 此玩家已在白名單中'); return;
-  }
-  list.push({ name: name, added: new Date().toLocaleDateString('zh-TW'), by: (APP.currentUser && APP.currentUser.displayName) || '—' });
-  saveWhitelist(list);
-  if (document.getElementById('wl-add-name')) document.getElementById('wl-add-name').value = '';
-  renderWhitelistTable();
-  renderWlCfgList();
-  toast('已新增 ' + name + ' ✓');
-  writeAuditLog('MC_WHITELIST_ADD', 'PLAYER', name, '成功');
-}
-
-function renderWlCfgList() {
-  const el = document.getElementById('wl-cfg-list');
-  if (!el) return;
-  const list = getWhitelist();
-  if (!list.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:8px 0">白名單為空</div>';
-    return;
-  }
-  el.innerHTML = '<table class="tbl"><thead><tr><th>玩家名稱</th><th>新增者</th><th>操作</th></tr></thead><tbody>'
-    + list.slice(0, 15).map(function(p) {
-      return '<tr><td><strong>' + p.name + '</strong></td>'
-        + '<td style="color:var(--t3)">' + p.by + '</td>'
-        + '<td><button class="btn btn-sm btn-d" onclick="removeWlEntry('' + p.name + '')">移除</button></td></tr>';
-    }).join('')
-    + '</tbody></table>';
-}
-
-// ── MC 封鎖名單（真正儲存）──────────────────────────────────────
-function getBanKey() {
-  const srv = APP.mc.selectedServer;
-  return srv ? 'mc_bans_' + srv.id : null;
-}
-
-function getMcBans() {
-  const key = getBanKey();
-  return key ? STORE.get(key, []) : [];
-}
-
-function saveMcBans(list) {
-  const key = getBanKey();
-  if (key) STORE.set(key, list);
-}
-
-function renderMcBansTable() {
-  const el = document.getElementById('mc-bans-list');
-  if (!el) return;
-  if (!APP.mc.selectedServer) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';
-    return;
-  }
-  const list = getMcBans();
-  if (!list.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">封鎖名單為空</div>';
-    return;
-  }
-  el.innerHTML = '<table class="tbl"><thead><tr><th>玩家名稱</th><th>原因</th><th>到期時間</th><th>封鎖者</th><th>操作</th></tr></thead><tbody>'
-    + list.map(function(b) {
-      return '<tr><td><strong>' + b.name + '</strong></td>'
-        + '<td style="color:var(--t3)">' + b.reason + '</td>'
-        + '<td style="color:' + (b.expires ? 'var(--warn)' : 'var(--t3)') + '">' + (b.expires || '永久') + '</td>'
-        + '<td style="color:var(--t3)">' + b.by + '</td>'
-        + '<td><button class="btn btn-sm btn-ok" onclick="removeMcBanEntry('' + b.name + '')">解除</button></td></tr>';
-    }).join('')
-    + '</tbody></table>';
-}
-
-function removeMcBanEntry(name) {
-  if (!confirm('確定要解除封鎖玩家「' + name + '」嗎？')) return;
-  saveMcBans(getMcBans().filter(function(b) { return b.name !== name; }));
-  renderMcBansTable();
-  toast('已解除封鎖 ' + name + ' ✓');
-  writeAuditLog('MC_PLAYER_UNBAN', 'PLAYER', name, '成功');
-}
-
-function execMcBan() {
-  const name    = ((document.getElementById('mcb-name')    || {}).value || '').trim();
-  const reason  = ((document.getElementById('mcb-reason')  || {}).value || '').trim();
-  const expires = (document.getElementById('mcb-expires')  || {}).value || null;
-  if (!name || !reason) { toast('請填入玩家名稱與原因'); return; }
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); closeM('mc-ban-player'); return; }
-
-  const list = getMcBans();
-  if (list.some(function(b) { return b.name.toLowerCase() === name.toLowerCase(); })) {
-    toast('⚠ 此玩家已在封鎖名單中'); return;
-  }
-  list.push({ name: name, reason: reason, expires: expires, by: (APP.currentUser && APP.currentUser.displayName) || '—', bannedAt: new Date().toISOString() });
-  saveMcBans(list);
-  renderMcBansTable();
-  closeM('mc-ban-player');
-  if (document.getElementById('mcb-name'))   document.getElementById('mcb-name').value   = '';
-  if (document.getElementById('mcb-reason')) document.getElementById('mcb-reason').value = '';
-  toast('已封鎖玩家 ' + name + ' ✓');
-  writeAuditLog('MC_PLAYER_BAN', 'PLAYER', name, '成功', { reason: reason });
-}
-
-// ── 備份（真正儲存）──────────────────────────────────────────────
-function getBackupKey() {
-  const srv = APP.mc.selectedServer;
-  return srv ? 'mc_backups_' + srv.id : null;
-}
-
-function renderBackupTable() {
-  const el = document.getElementById('mc-backup-list');
-  if (!el) return;
-  if (!APP.mc.selectedServer) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請先選擇伺服器</div>';
-    return;
-  }
-  const key  = getBackupKey();
-  const list = key ? STORE.get(key, []) : [];
-  if (!list.length) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">尚無備份。點擊「立即建立備份」建立第一個備份。</div>';
-    return;
-  }
-  el.innerHTML = '<table class="tbl"><thead><tr><th>備份名稱</th><th>建立時間</th><th>大小</th><th>狀態</th><th>操作</th></tr></thead><tbody>'
-    + list.map(function(b) {
-      return '<tr><td><strong>' + b.name + '</strong></td>'
-        + '<td style="color:var(--t3)">' + b.time + '</td>'
-        + '<td>' + b.size + '</td>'
-        + '<td><span class="badge ' + (b.ok ? 'bok' : 'bdanger') + '">' + (b.ok ? '完成' : '失敗') + '</span></td>'
-        + '<td><div style="display:flex;gap:4px">'
-        + '<button class="btn btn-sm btn-d" onclick="confirmAction('restore')">還原</button>'
-        + '<button class="btn btn-sm" onclick="deleteBackup('' + b.name + '')">刪除</button>'
-        + '</div></td></tr>';
-    }).join('')
-    + '</tbody></table>';
-}
-
-function mcCreateBackup() {
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-  const key  = getBackupKey();
-  if (!key) return;
-  const name = 'backup-' + new Date().toISOString().slice(0, 16).replace('T', '-').replace(':', '');
-  const list = STORE.get(key, []);
-  list.unshift({ name: name, time: new Date().toLocaleString('zh-TW'), size: Math.round(500 + Math.random() * 2000) + ' MB', ok: true });
-  STORE.set(key, list);
-  renderBackupTable();
-  toast('備份已建立：' + name + ' ✓');
-  writeAuditLog('MC_BACKUP_CREATE', 'SERVER', APP.mc.selectedServer.name, '成功');
-}
-
-function deleteBackup(name) {
-  if (!confirm('確定要刪除備份「' + name + '」嗎？此操作不可逆。')) return;
-  const key  = getBackupKey();
-  const list = STORE.get(key, []).filter(function(b) { return b.name !== name; });
-  STORE.set(key, list);
-  renderBackupTable();
-  toast('備份已刪除 ✓');
-}
-
-// ── Minecraft 操作（真正儲存踢出記錄）───────────────────────────
-function execMcKick() {
-  const reason = ((document.getElementById('mck-reason') || {}).value || '').trim();
-  const name   = (document.getElementById('mck-name') || {}).value || '';
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('mc-kick');
-  if (document.getElementById('mck-reason')) document.getElementById('mck-reason').value = '';
-  toast('已踢出玩家 ' + name + ' ✓');
-  writeAuditLog('MC_PLAYER_KICK', 'PLAYER', name, '成功', { reason: reason });
-}
-
-function execBroadcast() {
-  const msg = ((document.getElementById('bc-msg') || {}).value || '').trim();
-  if (!msg) { toast('請填入廣播訊息'); return; }
-  if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; }
-  closeM('mc-broadcast');
-  if (document.getElementById('bc-msg')) document.getElementById('bc-msg').value = '';
-  toast('廣播訊息已記錄（需要 Pterodactyl API 連線才能實際發送）');
-  writeAuditLog('MC_BROADCAST', 'SERVER', APP.mc.selectedServer.name, '成功');
-}
-
-// ── DC 操作（記錄）───────────────────────────────────────────────
-function execTimeout() {
-  const reason = ((document.getElementById('tm-reason') || {}).value || '').trim();
-  if (!reason || reason.length < 10) { toast('⚠ 原因至少 10 個字'); return; }
-  const dur  = (document.getElementById('tm-dur') || {}).value || '30 分鐘';
-  closeM('timeout');
-  if (document.getElementById('tm-reason')) document.getElementById('tm-reason').value = '';
-  toast('已對成員禁言 ' + dur + ' ✓（需要 Bot Token 才能實際執行）');
-  writeAuditLog('DISCORD_MEMBER_TIMEOUT', 'USER', '成員', '成功', { duration: dur, reason: reason });
-}
-
-function execKick() {
-  const reason = ((document.getElementById('kk-reason') || {}).value || '').trim();
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('kick');
-  if (document.getElementById('kk-reason')) document.getElementById('kk-reason').value = '';
-  toast('已踢出成員 ✓（需要 Bot Token 才能實際執行）');
-  writeAuditLog('DISCORD_MEMBER_KICK', 'USER', '成員', '成功', { reason: reason });
-}
-
-function execBan() {
-  const reason = ((document.getElementById('ban-reason') || {}).value || '').trim();
-  if (!reason) { toast('請填入原因'); return; }
-  closeM('ban');
-  if (document.getElementById('ban-reason')) document.getElementById('ban-reason').value = '';
-  toast('已封鎖成員 ✓（需要 Bot Token 才能實際執行）');
-  writeAuditLog('DISCORD_MEMBER_BAN', 'USER', '成員', '成功', { reason: reason });
-}
-
-// ── 維護模式（儲存狀態）─────────────────────────────────────────
-function toggleMaintenance() {
-  const srv = APP.mc.selectedServer;
-  if (!srv) { toast('請先選擇伺服器'); return; }
-  const key = 'maintenance_' + srv.id;
-  const on  = !STORE.get(key, false);
-  STORE.set(key, on);
-  updateMaintenanceUI(on);
-  const msg = ((document.getElementById('maint-msg') || {}).value || '').trim();
-  toast('維護模式已' + (on ? '開啟' : '關閉') + (msg ? '：' + msg : '') + ' ✓');
-  writeAuditLog(on ? 'MC_MAINTENANCE_ON' : 'MC_MAINTENANCE_OFF', 'SERVER', srv.name, '成功');
-}
-
-function updateMaintenanceUI(on) {
-  const dot = document.getElementById('maint-dot');
-  const lbl = document.getElementById('maint-lbl');
-  const btn = document.getElementById('maint-toggle-btn');
-  if (dot) dot.className = 'dot ' + (on ? 'dot-warn' : 'dot-off');
-  if (lbl) { lbl.textContent = '維護模式：' + (on ? '開啟中' : '關閉'); lbl.style.color = on ? 'var(--warn)' : 'var(--t1)'; }
-  if (btn) { btn.textContent = on ? '關閉維護模式' : '開啟維護模式'; btn.className = on ? 'btn btn-sm btn-ok' : 'btn btn-p btn-sm'; }
-}
-
-function loadMaintenanceState() {
-  const srv = APP.mc.selectedServer;
-  if (!srv) return;
-  const on = STORE.get('maintenance_' + srv.id, false);
-  updateMaintenanceUI(on);
-}
-
-// ── 伺服器設定（儲存）────────────────────────────────────────────
-function saveMcBasic() {
-  const srv = document.getElementById('mcs-srv-sel') && document.getElementById('mcs-srv-sel').value;
-  if (!srv) { toast('請先選擇伺服器'); return; }
-  const settings = {
-    motd:       ((document.getElementById('mcs-motd')       || {}).value || ''),
-    maxPlayers: ((document.getElementById('mcs-maxplayers') || {}).value || '50'),
-    difficulty: ((document.getElementById('mcs-diff')       || {}).value || 'Normal'),
-    gameMode:   ((document.getElementById('mcs-mode')       || {}).value || 'Survival'),
-  };
-  STORE.set('mc_settings_' + srv, settings);
-  toast('伺服器設定已儲存 ✓ 將在下次重啟後生效');
-  writeAuditLog('MC_CONFIG_UPDATE', 'SERVER', srv, '成功');
-}
-
-// ── Dashboard 渲染（讀取真實資料）──────────────────────────────
-function renderDashLogs() {
-  const logEl = document.getElementById('dash-logs');
-  if (!logEl) return;
-  const logs = STORE.get('audit_logs', []);
-  if (!logs.length) {
-    logEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">尚無操作紀錄。執行操作後將自動顯示。</div>';
-    return;
-  }
-  logEl.innerHTML = logs.slice(0, 5).map(function(l) {
-    const t   = new Date(l.timestamp).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const bad = l.result === '失敗';
-    const cls = bad ? 'li-d' : 'li-ok';
-    const code = l.action.slice(-3);
-    return '<div class="lr">'
-      + '<div class="lt">' + t + '</div>'
-      + '<div class="li ' + cls + '">' + code + '</div>'
-      + '<div class="lb"><div class="la">' + l.action + ' — ' + l.targetName + '</div>'
-      + '<div class="lm">' + l.actor + ' · ' + (bad ? '<span style="color:var(--danger)">' : '') + l.result + (bad ? '</span>' : '') + '</div></div>'
-      + '</div>';
-  }).join('');
-}
-
-function loadDashboardFull() {
-  // 操作次數
-  const logs = STORE.get('audit_logs', []);
-  const opsEl = document.getElementById('s-ops');
-  if (opsEl) opsEl.textContent = logs.length;
-
-  // Pterodactyl 狀態
-  const srvEl = document.getElementById('dash-servers');
-  if (srvEl) {
-    if (!APP.ptero.bound || !APP.ptero.servers.length) {
-      srvEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Pterodactyl 綁定後顯示伺服器狀態。<br><br>'
-        + '<button class="btn btn-sm" onclick="pg('pterodactyl','Pterodactyl 綁定')">前往綁定</button></div>';
-    } else {
-      srvEl.innerHTML = APP.ptero.servers.map(function(s) {
-        const running = s.status === 'running';
-        return '<div class="sr"><span class="dot ' + (running ? 'dot-ok' : 'dot-off') + '"></span>'
-          + '<div style="flex:1"><div style="font-size:13px;font-weight:500">' + s.name + '</div>'
-          + '<div style="font-size:11px;color:var(--t3)">' + (running ? s.players + '/' + s.maxPlayers + ' 玩家' : '離線') + '</div></div>'
-          + (running
-            ? '<button class="btn btn-sm btn-d" onclick="confirmAction('stop')">停止</button>'
-              + '<button class="btn btn-sm" onclick="confirmAction('restart')" style="margin-left:4px">重啟</button>'
-            : '<button class="btn btn-sm btn-p" onclick="mcPower('start')">啟動</button>')
-          + '</div>';
-      }).join('');
-    }
-  }
-
-  // Bot 狀態
-  const dcEl = document.getElementById('dash-discord');
-  if (dcEl) {
-    const botOk = STORE.get('settings_bot_configured', false);
-    if (!botOk) {
-      dcEl.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:10px 0">請完成 Bot Token 設定後顯示 Discord 摘要。<br><br>'
-        + '<button class="btn btn-sm" onclick="pg('sensitive','敏感設定')">前往設定</button></div>';
-    } else {
-      dcEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2)">'
-        + '<span class="dot dot-ok"></span>Bot 已設定 · 等待實際 API 連線</div>';
-    }
-  }
-
-  renderDashLogs();
-}
-
-// ── 系統狀態頁（讀取真實儲存）──────────────────────────────────
-function renderStatusPage() {
-  const botDot = document.getElementById('st-bot-dot');
-  const botLbl = document.getElementById('st-bot-lbl');
-  const botOk  = STORE.get('settings_bot_configured', false);
-  if (botDot) botDot.className = 'dot ' + (botOk ? 'dot-ok' : 'dot-off');
-  if (botLbl) { botLbl.textContent = botOk ? 'Bot Token 已設定' : '尚未設定'; botLbl.style.color = botOk ? 'var(--ok)' : 'var(--t2)'; }
-
-  const tbody = document.getElementById('st-ptero-tbody');
-  if (!tbody) return;
-  if (!APP.ptero.bound) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--t3);padding:16px;text-align:center">尚未綁定 Pterodactyl Panel</td></tr>';
-  } else {
-    tbody.innerHTML = '<tr>'
-      + '<td>' + ((APP.currentUser && APP.currentUser.displayName) || '—') + '</td>'
-      + '<td style="font-size:12px;color:var(--t3)">' + APP.ptero.url + '</td>'
-      + '<td style="color:var(--ok)">' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + '</td>'
-      + '<td>' + APP.ptero.servers.length + '</td>'
-      + '<td><span class="badge bok">正常</span></td>'
-      + '</tr>';
-  }
-}
-
-// ── CONFIRM 對話框（修正 unbind）──────────────────────────────
-var CONFIRMS = {
-  stop:             { title: '確認停止伺服器', sub: '此操作將強制斷開所有在線玩家連線', alert: '請先通知玩家或開啟維護模式', label: '輸入伺服器名稱以確認：', ph: 'LLS懶懶生存 - Survival', cb: function() { if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; } mcPower('stop'); } },
-  restart:          { title: '確認重啟伺服器', sub: '重啟期間玩家將暫時斷線（約 30–60 秒）', alert: '建議先廣播通知玩家', label: '輸入「CONFIRM RESTART」以確認', ph: 'CONFIRM RESTART', cb: function() { if (!APP.mc.selectedServer) { toast('請先選擇伺服器'); return; } mcPower('restart'); } },
-  unbind:           { title: '撤銷 Pterodactyl 綁定', sub: '撤銷後將無法控制任何 Minecraft 伺服器', alert: '此操作不可逆，需重新綁定才能恢復', label: '輸入「CONFIRM UNBIND」以確認', ph: 'CONFIRM UNBIND', cb: function() { pteroDoBind_revoke(); } },
-  restore:          { title: '確認還原備份', sub: '還原後伺服器資料將回到備份時間點', alert: '此操作不可逆！當前資料將被備份覆蓋', label: '輸入「CONFIRM RESTORE」以確認', ph: 'CONFIRM RESTORE', cb: function() { toast('備份還原任務已建立（需要 Pterodactyl API）'); writeAuditLog('MC_BACKUP_RESTORE', 'SERVER', '—', '成功'); } },
-  'emergency-lock': { title: '開啟緊急鎖定', sub: '所有非擁有者帳號的 API 請求將立即被拒絕', alert: '此操作將立即影響所有在線管理員', label: '輸入「CONFIRM LOCK」以確認', ph: 'CONFIRM LOCK', cb: function() { STORE.set('emergency_lock', true); toast('緊急鎖定已開啟 ✓'); writeAuditLog('SECURITY_EMERGENCY_LOCK', 'SETTING', '系統', '成功'); } },
-};
-
-function confirmAction(type) {
-  const c = CONFIRMS[type];
-  if (!c) return;
-  const titleEl = document.getElementById('cf-title'); if (titleEl) titleEl.textContent = c.title;
-  const subEl   = document.getElementById('cf-sub');   if (subEl)   subEl.textContent   = c.sub;
-  const alertEl = document.getElementById('cf-alert'); if (alertEl) alertEl.textContent = c.alert;
-  const labelEl = document.getElementById('cf-label'); if (labelEl) labelEl.textContent = c.label;
-  const inputEl = document.getElementById('cf-input');
-  if (inputEl) { inputEl.placeholder = c.ph; inputEl.value = ''; }
-  const btnEl   = document.getElementById('cf-btn');
-  if (btnEl) btnEl.onclick = function() { closeM('confirm'); c.cb(); };
-  openM('confirm');
-}
-
-// ── initApp 覆寫（含載入持久資料）──────────────────────────────
-function initApp() {
-  // 載入持久化資料
-  APP.audit.logs = STORE.get('audit_logs', []);
-  loadPteroBinding();
-  loadSensitiveSettings();
-  ensureOwnerAdmin();
-
-  // 渲染各區塊
-  loadDashboardFull();
-  renderAuditTable();
-  renderUsers();
-  loadAnnChannels();
-  renderAnnHistory();
-  loadTemplate();
-
-  // 設定日期篩選器
-  const today = new Date().toISOString().split('T')[0];
-  const week  = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-  const af    = document.getElementById('audit-from'); if (af) af.value = week;
-  const at    = document.getElementById('audit-to');   if (at) at.value = today;
-
-  // 更新 s-ops
-  const opsEl = document.getElementById('s-ops');
-  if (opsEl) opsEl.textContent = APP.audit.logs.length;
-
-  // 更新側邊欄 Avatar
-  updateSidebarAvatar();
-}
-
-// ── 敏感設定頁開啟時載入儲存值 ─────────────────────────────────
-// 在 pg() 的 sensitive 區塊已呼叫 loadSensitiveSettings，無需額外處理
-
-// ── MC 設定頁開啟時，載入該伺服器設定 ──────────────────────────
-function loadMcSettings() {
-  const id = (document.getElementById('mcs-srv-sel') || {}).value;
-  const el = document.getElementById('mcs-basic-form');
-  if (!el) return;
-  if (!id) {
-    el.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">請先選擇伺服器</div>';
-    return;
-  }
-  const srv      = APP.ptero.servers.find(function(s) { return s.id === id; });
-  const saved    = STORE.get('mc_settings_' + id, {});
-  const motd     = saved.motd       || (srv ? srv.name : '');
-  const maxP     = saved.maxPlayers || (srv ? srv.maxPlayers : 50);
-  const diff     = saved.difficulty || 'Normal';
-  const mode     = saved.gameMode   || 'Survival';
-
-  el.innerHTML = '<div class="fg"><label class="fl">伺服器描述 (MOTD)</label>'
-    + '<input class="fi" id="mcs-motd" value="' + motd + '"></div>'
-    + '<div class="frow">'
-    + '<div class="fg"><label class="fl">最大玩家數</label><input class="fi" type="number" id="mcs-maxplayers" value="' + maxP + '"></div>'
-    + '<div class="fg"><label class="fl">遊戲難度</label><select class="fsel" id="mcs-diff">'
-    + ['Easy','Normal','Hard'].map(function(d) { return '<option' + (d === diff ? ' selected' : '') + '>' + d + '</option>'; }).join('')
-    + '</select></div></div>'
-    + '<div class="fg"><label class="fl">預設遊戲模式</label><select class="fsel" id="mcs-mode">'
-    + ['Survival','Creative','Adventure'].map(function(m) { return '<option' + (m === mode ? ' selected' : '') + '>' + m + '</option>'; }).join('')
-    + '</select></div>'
-    + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>強制白名單</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>啟用 PVP</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;font-size:13px"><span>正版驗證 (Online Mode)</span><label class="tog"><input type="checkbox" checked><span class="tslider"></span></label></div>'
-    + '</div>'
-    + '<button class="btn btn-p btn-sm" onclick="saveMcBasic()">儲存設定</button>';
-}
-
-// ── switchMcServer 已在原始函式內整合所有副作用 ────────────────
-// （維護狀態、白名單、封鎖名單、備份由原始 switchMcServer 呼叫）
-
-// ── Pterodactyl 驗證（讀取儲存）─────────────────────────────────
-function pteroVerify() {
-  const binding = STORE.get('ptero_binding', null);
-  if (!binding) { toast('尚未綁定'); return; }
-  toast('驗證連線... ✓ Panel 回應正常（模擬）');
-  writeAuditLog('SYSTEM_BINDING_VERIFY', 'BINDING', binding.url, '成功');
-}
-
-// ── 清除所有警示（更新 badge）───────────────────────────────────
-function clearAllAlerts() {
-  const alertList = document.getElementById('alert-list');
-  if (alertList) alertList.innerHTML = '<div style="color:var(--t3);font-size:12px;padding:20px;text-align:center">所有警示已確認</div>';
-  const badge = document.getElementById('alert-badge');
-  if (badge) badge.textContent = '0';
-  STORE.set('alerts_cleared', true);
-  toast('所有警示已確認 ✓');
-}
-
-// ── 身分組管理（選取）───────────────────────────────────────────
-function selectRole(el, name) {
-  document.querySelectorAll('#role-list .card').forEach(function(c) { c.style.borderColor = ''; });
-  el.style.borderColor = 'var(--acc)';
-  const titleEl = document.getElementById('role-perm-title');
-  if (titleEl) titleEl.textContent = name + ' 許可操作';
-}
-
-// ── 側邊欄 Avatar 更新（由 initApp 呼叫，避免遞迴）──────────────
-function updateSidebarAvatar() {
-  if (APP.currentUser) {
-    const initial = (APP.currentUser.displayName || APP.currentUser.email || '?').charAt(0).toUpperCase();
-    const avEl = document.querySelector('.av');
-    if (avEl) avEl.textContent = initial;
-    const unameEl = document.getElementById('sb-uname');
-    if (unameEl) unameEl.textContent = APP.currentUser.displayName || APP.currentUser.email || '管理員';
-    const uroleEl = document.getElementById('sb-urole');
-    if (uroleEl) uroleEl.textContent = '最高擁有者';
-  }
-}
+}, 1500);
 
 </script>
 </body>
